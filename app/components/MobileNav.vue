@@ -1,0 +1,37 @@
+<script setup lang="ts">
+import { Download, Heart, Library, ListMusic } from 'lucide-vue-next'
+
+const route = useRoute()
+
+const items = [
+  { label: 'Library', to: '/', icon: Library },
+  { label: 'Favourites', to: '/favourites', icon: Heart },
+  { label: 'Playlists', to: '/playlists', icon: ListMusic },
+  { label: 'Add', to: '/add', icon: Download },
+]
+
+function isActive(to: string): boolean {
+  if (to === '/') return route.path === '/'
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
+</script>
+
+<template>
+  <nav
+    class="fixed inset-x-0 bottom-0 z-30 border-t border-white/6 bg-night-900/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-2xl lg:hidden"
+    aria-label="Bottom navigation"
+  >
+    <div class="grid grid-cols-4">
+      <NuxtLink
+        v-for="item in items"
+        :key="item.to"
+        :to="item.to"
+        class="flex flex-col items-center gap-1 py-2.5 text-[10px] transition-colors"
+        :class="isActive(item.to) ? 'text-lavender-200' : 'text-cream-faint'"
+      >
+        <component :is="item.icon" class="h-5 w-5" />
+        {{ item.label }}
+      </NuxtLink>
+    </div>
+  </nav>
+</template>

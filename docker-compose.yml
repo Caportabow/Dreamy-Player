@@ -1,0 +1,111 @@
+# ------------------------------------------------------------------
+# Dreamy — full development stack.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000
+# MinIO console: http://localhost:9001 (minioadmin / minioadmin)
+#
+# Values can be overridden via .env (see .env.example).
+# ------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dreamy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dreamy}
+      POSTGRES_DB: ${POSTGRES_DB:-dreamy}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dreamy} -d ${POSTGRES_DB:-dreamy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  download-worker:
+    build: ./download-service
+    restart: unless-stopped
+    environment:
+      PORT: 8787
+      DOWNLOAD_SERVICE_SECRET: ${DOWNLOAD_SERVICE_SECRET:-dev-download-secret}
+      # The worker reports back to Nuxt's internal job API.
+      DOWNLOAD_SERVICE_URL: http://nuxt:3000
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_AUDIO_BUCKET: ${MINIO_AUDIO_BUCKET:-audio}
+      MINIO_ARTWORK_BUCKET: ${MINIO_ARTWORK_BUCKET:-artwork}
+      WORKER_TMP_DIR: /tmp/dreamy-downloads
+    depends_on:
+      minio:
+        condition: service_healthy
+    # Published only for local development; the browser never talks to this.
+    ports:
+      - "8787:8787"
+
+  nuxt:
+    build:
+      context: .
+      target: deps
+    restart: unless-stopped
+    command: sh -c "npm run db:migrate && npm run dev -- --host 0.0.0.0"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://${POSTGRES_USER:-dreamy}:${POSTGRES_PASSWORD:-dreamy}@postgres:5432/${POSTGRES_DB:-dreamy}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_AUDIO_BUCKET: ${MINIO_AUDIO_BUCKET:-audio}
+      MINIO_ARTWORK_BUCKET: ${MINIO_ARTWORK_BUCKET:-artwork}
+      MINIO_AVATARS_BUCKET: ${MINIO_AVATARS_BUCKET:-avatars}
+      DOWNLOAD_SERVICE_URL: http://download-worker:8787
+      DOWNLOAD_SERVICE_SECRET: ${DOWNLOAD_SERVICE_SECRET:-dev-download-secret}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.nuxt
+      - /app/.output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      download-worker:
+        condition: service_started
+
+volumes:
+  pgdata:
+  minio-data:
