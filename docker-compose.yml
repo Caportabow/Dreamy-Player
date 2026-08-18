@@ -106,6 +106,18 @@ services:
       download-worker:
         condition: service_started
 
+  # Cloudflare Tunnel — exposes the Nuxt app at your tunnel hostname.
+  # Requires TUNNEL_TOKEN in .env (Cloudflare Zero Trust > Networks > Tunnels:
+  # create a tunnel, then copy the token from its "Install and run" step).
+  # In the tunnel's Public Hostname tab, point the hostname at http://nuxt:3000
+  # so traffic reaches this container by its compose service name.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env to enable the Cloudflare tunnel}
+    depends_on:
+      - nuxt
+
 volumes:
   pgdata:
   minio-data:
