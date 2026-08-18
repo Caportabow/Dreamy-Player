@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { Download, Music, Search } from 'lucide-vue-next'
+import { Download, Music, Pause, Play, Search } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useDownloadsStore } from '~/stores/downloads'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
+import { useTrackPreview } from '~/composables/useTrackPreview'
 
 
 const downloads = useDownloadsStore()
 const toast = useToast()
+const { playingUrl, togglePreview, stopPreview } = useTrackPreview()
 
 const query = ref('')
 const selected = ref<SearchResult | null>(null)
 const submitting = ref(false)
+
+const isPreviewingSelected = computed(
+  () => !!selected.value?.previewUrl && playingUrl.value === selected.value.previewUrl,
+)
 
 function select(result: SearchResult): void {
   selected.value = result
@@ -22,12 +28,14 @@ async function doSearch(): Promise<void> {
     toast.error('Tell us what you are looking for.')
     return
   }
+  stopPreview()
   selected.value = null
   await downloads.search(q)
 }
 
 async function startDownload(): Promise<void> {
   if (!selected.value) return
+  stopPreview()
   submitting.value = true
   try {
     const { job, addedTrackId } = await downloads.createJob({
@@ -35,7 +43,8 @@ async function startDownload(): Promise<void> {
       title: selected.value.title,
       artist: selected.value.artist,
       duration: selected.value.duration,
-      artworkUrl: selected.value.thumbnail || '',
+      artworkUrl: selected.value.artworkUrl || selected.value.thumbnail || '',
+      mbid: selected.value.mbid,
     })
     if (job) {
       toast.success('Added to the queue — it will appear in your library soon.')
@@ -55,6 +64,9 @@ onMounted(async () => {
   await downloads.fetchJobs()
   if (downloads.hasActiveJobs) downloads.ensurePolling()
 })
+
+// A preview is a short listen — never keep it playing after leaving the page.
+onUnmounted(stopPreview)
 
 useHead({ title: 'Add Music' })
 </script>
@@ -111,12 +123,27 @@ useHead({ title: 'Add Music' })
       <div v-if="selected" class="pillow mt-4 flex items-center justify-between gap-4 p-4 animate-fade-in-up">
         <div class="min-w-0">
           <p class="truncate text-sm text-cream">{{ selected.title }}</p>
-          <p class="text-xs text-cream-dim">{{ selected.artist }} · {{ formatDuration(selected.duration) }}</p>
+          <p class="text-xs text-cream-dim">
+            {{ selected.artist }}{{ selected.album ? ` · ${selected.album}` : '' }} · {{ formatDuration(selected.duration) }}
+          </p>
         </div>
-        <Button :disabled="submitting" class="shrink-0" @click="startDownload">
-          <Download class="h-4 w-4" />
-          {{ submitting ? 'Starting…' : 'Download' }}
-        </Button>
+        <div class="flex shrink-0 items-center gap-2">
+          <Button
+            v-if="selected.previewUrl"
+            variant="ghost"
+            size="icon-sm"
+            :aria-label="isPreviewingSelected ? 'Stop preview' : 'Preview this song'"
+            :title="isPreviewingSelected ? 'Stop preview' : 'Listen to a 30-second preview'"
+            @click="togglePreview(selected.previewUrl)"
+          >
+            <Pause v-if="isPreviewingSelected" class="h-4 w-4" />
+            <Play v-else class="h-4 w-4" />
+          </Button>
+          <Button :disabled="submitting" class="shrink-0" @click="startDownload">
+            <Download class="h-4 w-4" />
+            {{ submitting ? 'Starting…' : 'Download' }}
+          </Button>
+        </div>
       </div>
     </div>
 

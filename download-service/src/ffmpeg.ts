@@ -14,7 +14,7 @@ export class FfmpegError extends Error {
 export async function toMp3(
   input: string,
   output: string,
-  meta: { title: string; artist: string },
+  meta: { title: string; artist: string; album?: string },
 ): Promise<void> {
   const args = [
     '-y',
@@ -25,8 +25,9 @@ export async function toMp3(
     '-id3v2_version', '3',
     '-metadata', `title=${meta.title.slice(0, 200)}`,
     '-metadata', `artist=${meta.artist.slice(0, 200)}`,
-    output,
   ]
+  if (meta.album) args.push('-metadata', `album=${meta.album.slice(0, 200)}`)
+  args.push(output)
   try {
     await execFileAsync('ffmpeg', args, { timeout: 240_000, maxBuffer: 16 * 1024 * 1024 })
   } catch (err: any) {

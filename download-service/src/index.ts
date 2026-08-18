@@ -5,10 +5,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { env } from './env'
-import { downloadAudio, fetchMetadata, search, YtError, type FullMetadata, type VideoInfo } from './yt'
+import { downloadAudio, fetchMetadata, search, YtError, type FullMetadata } from './yt'
 import { toMp3, toWebpSquare } from './ffmpeg'
 import { ensureBuckets, uploadFile } from './storage'
 import { reportComplete, reportFailure, reportProgress } from './nuxt'
+import { resolveCoverArt } from './musicbrainz'
+import { enrichResults, getEnrichment, resolveEnrichmentForDownload, type EnrichedResult } from './enrich'
 
 const app = express()
 app.use(express.json({ limit: '256kb' }))
@@ -29,7 +31,7 @@ app.get('/health', (_req, res) => {
 
 /** Short-lived search cache: repeat queries are served instantly. */
 const SEARCH_CACHE_TTL_MS = 3 * 60_000
-const searchCache = new Map<string, { at: number; results: VideoInfo[] }>()
+const searchCache = new Map<string, { at: number; results: EnrichedResult[] }>()
 
 /** Search YouTube in metadata-only mode; only ≤5min results are returned. */
 app.post('/search', requireAuth, async (req, res) => {
@@ -44,7 +46,9 @@ app.post('/search', requireAuth, async (req, res) => {
     return
   }
   try {
-    const results = await search(query, env.maxDuration)
+    // YouTube search first, then normalize with MusicBrainz (which also
+    // collapses duplicate uploads) and attach iTunes previews.
+    const results = await enrichResults(await search(query, env.maxDuration))
     searchCache.set(query, { at: Date.now(), results })
     if (searchCache.size > 200) {
       const now = Date.now()
@@ -106,12 +110,25 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
     await reportProgress(jobId, { status: 'searching', stage: 'Re-checking the video…', progress: 5 })
     const meta = await fetchMetadata(sourceUrl, env.maxDuration)
 
+    // Normalize the name and artist with MusicBrainz — reuse the enrichment
+    // found during the search, or run a fresh lookup — and resolve the real
+    // cover from the Cover Art Archive. All best-effort.
+    const enrichment =
+      getEnrichment(meta.url) ?? (await resolveEnrichmentForDownload(meta, meta.raw))
+    const title = enrichment?.title || meta.title
+    const artist = enrichment?.artist || meta.artist
+    const album = enrichment?.album || null
+    const coverUrl =
+      enrichment && enrichment.releaseIds.length > 0
+        ? await resolveCoverArt(enrichment.releaseIds)
+        : null
+
     dir = await mkdtemp(path.join(env.tempDir, 'job-'))
 
     // 2. Download the audio stream while the artwork is fetched/converted in
     //    parallel — the two share no resources, so neither waits on the other.
     await reportProgress(jobId, { status: 'downloading', stage: 'Gently downloading…', progress: 30 })
-    const artworkPromise = prepareArtwork(meta, input.artworkUrl, dir)
+    const artworkPromise = prepareArtwork(meta, coverUrl || input.artworkUrl, dir)
     const audioPath = await downloadAudio(sourceUrl, dir, meta.id)
     const artworkKey = await artworkPromise
 
@@ -119,7 +136,7 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
     await reportProgress(jobId, { status: 'converting', stage: 'Wrapping it in a pillow…', progress: 60 })
     const trackId = randomUUID()
     const mp3Path = path.join(dir, `${meta.id}.mp3`)
-    await toMp3(audioPath, mp3Path, { title: meta.title, artist: meta.artist })
+    await toMp3(audioPath, mp3Path, { title, artist, album: album || undefined })
 
     // 4. Upload the MP3.
     await reportProgress(jobId, { status: 'uploading', stage: 'Tucking it into the library…', progress: 80 })
@@ -131,8 +148,10 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
     // 5. Tell Nuxt to create the track record (Nuxt re-validates everything).
     await reportComplete(jobId, {
       id: trackId,
-      title: meta.title,
-      artist: meta.artist,
+      title,
+      artist,
+      album,
+      mbid: enrichment?.mbid ?? null,
       duration: meta.duration ?? 0,
       audioKey,
       artworkKey,

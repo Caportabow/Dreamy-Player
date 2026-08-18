@@ -6,8 +6,13 @@ interface SearchResult {
   id: string
   title: string
   artist: string
+  album: string | null
   duration: number
   thumbnail: string | null
+  artworkUrl: string | null
+  previewUrl: string | null
+  mbid: string | null
+  matched: boolean
   url: string
 }
 
@@ -24,7 +29,7 @@ export default defineEventHandler(async (event) => {
       method: 'POST',
       headers: serviceAuthHeaders(),
       body: { query },
-      timeout: 45_000,
+      timeout: 60_000,
     })
     results = res.results ?? []
   } catch (err: any) {

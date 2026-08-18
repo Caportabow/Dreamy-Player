@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
     artist?: string
     duration?: number
     artworkUrl?: string
+    mbid?: string
   }>(event)
 
   const sourceUrl = typeof body.sourceUrl === 'string' ? body.sourceUrl.trim() : ''
@@ -53,26 +54,37 @@ export default defineEventHandler(async (event) => {
   }
 
   const artworkUrl = typeof body.artworkUrl === 'string' ? body.artworkUrl.trim().slice(0, 1000) : ''
+  const mbid =
+    typeof body.mbid === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.mbid)
+      ? body.mbid.toLowerCase()
+      : null
 
   const sourceId = extractYoutubeId(sourceUrl)
+  let existing: { id: string } | undefined
   if (sourceId) {
-    const existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
-    if (existing) {
-      // The song already lives in the shared catalog (someone else added it,
-      // or this user did before). Add it to this user's library without
-      // re-downloading anything — the stored file is reused as-is.
-      const inLibrary = await db.query.userTracks.findFirst({
-        where: and(eq(userTracks.userId, user.id), eq(userTracks.trackId, existing.id)),
+    existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
+  }
+  // Same recording under a different YouTube upload — the catalog entry (and
+  // its stored file) is reused as-is, nothing is re-downloaded.
+  if (!existing && mbid) {
+    existing = await db.query.tracks.findFirst({ where: eq(tracks.mbid, mbid) })
+  }
+  if (existing) {
+    // The song already lives in the shared catalog (someone else added it,
+    // or this user did before). Add it to this user's library without
+    // re-downloading anything — the stored file is reused as-is.
+    const inLibrary = await db.query.userTracks.findFirst({
+      where: and(eq(userTracks.userId, user.id), eq(userTracks.trackId, existing.id)),
+    })
+    if (inLibrary) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'This song is already in your library.',
       })
-      if (inLibrary) {
-        throw createError({
-          statusCode: 409,
-          statusMessage: 'This song is already in your library.',
-        })
-      }
-      await db.insert(userTracks).values({ userId: user.id, trackId: existing.id }).onConflictDoNothing()
-      return { job: null, trackId: existing.id }
     }
+    await db.insert(userTracks).values({ userId: user.id, trackId: existing.id }).onConflictDoNothing()
+    return { job: null, trackId: existing.id }
   }
 
   const jobId = randomUUID()
