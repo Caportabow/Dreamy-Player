@@ -59,9 +59,10 @@ function cleanTitle(rawTitle: string): string {
     .trim()
 }
 
-/** Clean a channel name into a likely artist name ("TaylorSwiftVEVO" → "Taylor Swift"). */
+/** Clean a channel name into a likely artist name ("Official Arctic Monkeys" → "Arctic Monkeys", "TaylorSwiftVEVO" → "Taylor Swift"). */
 function cleanChannelArtist(channel: string): string {
   return channel
+    .replace(/^Official\s+/i, '')
     .replace(/\s*(VEVO|Official|Music|Topic)\s*$/i, '')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .trim()
