@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Camera, Check, Fingerprint, KeyRound, LogOut, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { AlertTriangle, Camera, Check, Fingerprint, KeyRound, LogOut, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import type { AuthUser, PasskeyInfo } from '~/types/music'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
-import { usePasskeys } from '~/composables/usePasskeys'
+import { defaultPasskeyName, usePasskeys } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 import { mediaUrl } from '~/types/music'
 
@@ -32,6 +32,15 @@ const passkeysLoading = ref(false)
 const addingPasskey = ref(false)
 const removingPasskey = ref<string | null>(null)
 
+// --- Delete account ---
+const deleteOpen = ref(false)
+const deleteConfirm = ref('')
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
+const confirmMatches = computed(
+  () => deleteConfirm.value.trim().toLowerCase() === (auth.user?.username || '').toLowerCase(),
+)
+
 function initials(): string {
   const name = auth.displayName || auth.user?.username || '?'
   return name
@@ -44,17 +53,6 @@ function initials(): string {
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-/** A friendly, stable-ish name for a newly created passkey. */
-function defaultPasskeyName(): string {
-  const ua = navigator.userAgent
-  if (/iPhone|iPad|iPod/.test(ua)) return 'iPhone'
-  if (/Macintosh|Mac OS X/.test(ua)) return 'Mac'
-  if (/Windows/.test(ua)) return 'Windows'
-  if (/Android/.test(ua)) return 'Android'
-  if (/Linux/.test(ua)) return 'Linux'
-  return 'Passkey'
 }
 
 function startEdit(): void {
@@ -157,7 +155,7 @@ async function addPasskey(): Promise<void> {
   addingPasskey.value = true
   try {
     await passkeysApi.registerPasskey(defaultPasskeyName())
-    await loadPasskeys()
+    // The composable bumps passkeysChanged → the watcher below reloads the list.
     toast.success('Passkey saved.')
   } catch (err: any) {
     error.value = apiErrorMessage(err, 'Could not save the passkey.')
@@ -187,6 +185,29 @@ async function signOut(): Promise<void> {
   // clean; the guest middleware then lands on the sign-in page.
   window.location.reload()
 }
+
+async function deleteAccount(): Promise<void> {
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await $fetch('/api/auth/delete-account', { method: 'POST' })
+    auth.setUser(null)
+    player.reset()
+    toast.info('Account deleted. Sweet dreams.')
+    // Hard refresh — the guest middleware lands on the sign-in page with
+    // every store and the audio element reset.
+    window.location.reload()
+  } catch (err: any) {
+    deleteError.value = apiErrorMessage(err, 'Could not delete your account.')
+    deleting.value = false
+  }
+}
+
+// Keep the list in sync when passkeys change anywhere in the app (e.g. a
+// passkey added via the banner while this page is already mounted).
+watch(passkeysApi.passkeysChanged, () => {
+  void loadPasskeys()
+})
 
 onMounted(loadPasskeys)
 useHead({ title: 'Profile' })
@@ -386,6 +407,68 @@ useHead({ title: 'Profile' })
           </div>
         </div>
       </section>
+
+      <div class="h-px bg-white/8" />
+
+      <!-- Danger zone -->
+      <section>
+        <div class="mb-1 flex items-center gap-2">
+          <AlertTriangle class="h-4 w-4 text-rose-300/80" />
+          <h2 class="text-sm font-medium text-cream-muted">Danger zone</h2>
+        </div>
+        <p class="mb-4 text-sm text-cream-dim">
+          Deleting your account removes your favourites, playlists, history, and passkeys forever.
+        </p>
+        <Button type="button" variant="destructive" @click="deleteOpen = true">
+          <Trash2 class="h-4 w-4" />
+          Delete account
+        </Button>
+      </section>
     </div>
+
+    <!-- Delete account confirmation -->
+    <Dialog v-model:open="deleteOpen">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete your account?</DialogTitle>
+          <DialogDescription>
+            This is permanent. Your favourites, playlists, history, passkeys, and downloads will
+            be gone — there is no undo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <p v-if="deleteError" class="rounded-pillow-sm bg-rose-500/10 px-4 py-2.5 text-sm text-rose-200">
+          {{ deleteError }}
+        </p>
+
+        <div class="flex flex-col gap-2">
+          <Label for="delete-confirm">Type your username to confirm</Label>
+          <Input
+            id="delete-confirm"
+            v-model="deleteConfirm"
+            type="text"
+            autocomplete="off"
+            :placeholder="`${auth.user?.username}`"
+            autofocus
+            @keydown.enter="confirmMatches && deleteAccount()"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" :disabled="deleting" @click="deleteOpen = false">
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            :disabled="!confirmMatches || deleting"
+            @click="deleteAccount"
+          >
+            <Trash2 class="h-4 w-4" />
+            {{ deleting ? 'Deleting…' : 'Delete account' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

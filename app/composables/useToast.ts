@@ -1,15 +1,21 @@
 import { toast } from 'vue-sonner'
 
+interface ToastOptions {
+  description?: string
+  action?: { label: string; onClick: () => void }
+  duration?: number
+}
+
 export function useToast() {
   return {
-    success(message: string): void {
-      toast.success(message, { description: undefined })
+    success(message: string, options?: ToastOptions): void {
+      toast.success(message, options)
     },
-    error(message: string): void {
-      toast.error(message)
+    error(message: string, options?: ToastOptions): void {
+      toast.error(message, options)
     },
-    info(message: string): void {
-      toast(message)
+    info(message: string, options?: ToastOptions): void {
+      toast(message, options)
     },
   }
 }

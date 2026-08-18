@@ -45,6 +45,8 @@ const sheetOpen = ref(false)
 
     <!-- Main content -->
     <main class="mx-auto w-full min-w-0 max-w-[1200px] flex-1 px-4 pb-48 pt-4 sm:px-6 lg:pb-36 lg:pt-8">
+      <!-- A gentle, dismissible nudge for accounts without a passkey yet. -->
+      <PasskeyNudge v-if="auth.isSignedIn" />
       <NuxtPage />
     </main>
 

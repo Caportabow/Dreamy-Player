@@ -22,8 +22,10 @@ const cameFromGuest = computed(() => route.query.reason === 'guest')
 
 async function finishSignIn(name: string): Promise<void> {
   await player.restore()
-  toast.success(`Welcome back, ${name}.`)
+  // Navigate first, then toast: the welcome renders on the destination page
+  // where the user is looking, and can never be wiped by the route change.
   await navigateTo(nextPath.value)
+  toast.success(`Welcome back, ${name}.`)
 }
 
 async function submit(): Promise<void> {
