@@ -64,12 +64,7 @@ useHead({ title: 'Sign in' })
         <AppLogo :size="56" class="mb-4" />
         <h1 class="font-display text-2xl font-semibold text-cream">Welcome back</h1>
         <p class="mt-2 max-w-xs text-sm leading-relaxed text-cream-dim">
-          <template v-if="cameFromGuest">
-            Your favourites, playlists, and listening story will be waiting for you.
-          </template>
-          <template v-else>
-            Sign in to keep your favourites, playlists, and listening story close.
-          </template>
+          Sign in to keep your favourites, playlists, and listening story close.
         </p>
       </div>
 
@@ -132,11 +127,6 @@ useHead({ title: 'Sign in' })
         >
           Create an account
         </NuxtLink>
-      </p>
-
-      <p class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-cream-faint">
-        <KeyRound class="h-3.5 w-3.5" />
-        Tip: a saved passkey lets you skip the password entirely.
       </p>
     </div>
   </div>

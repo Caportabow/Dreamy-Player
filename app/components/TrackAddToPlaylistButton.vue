@@ -12,10 +12,6 @@ const toast = useToast()
 const open = ref(false)
 
 function openDialog(): void {
-  if (!auth.isSignedIn) {
-    toast.info('Sign in to keep your favourites, playlists, and listening story close.')
-    return
-  }
   open.value = true
 }
 </script>

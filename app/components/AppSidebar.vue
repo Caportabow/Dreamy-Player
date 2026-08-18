@@ -25,10 +25,6 @@ function isActive(to: string): boolean {
 }
 
 function onCreatePlaylist(): void {
-  if (!auth.isSignedIn) {
-    toast.info('Sign in to keep your favourites, playlists, and listening story close.')
-    return
-  }
   createOpen.value = true
 }
 
@@ -71,17 +67,6 @@ function go(to: string): void {
       <Plus class="h-4 w-4" />
       Create playlist
     </button>
-
-    <div v-if="!auth.isSignedIn" class="mt-auto">
-      <div class="rounded-pillow-sm bg-white/4 p-4">
-        <p class="text-sm leading-relaxed text-cream-dim">
-          Sign in to keep your favourites, playlists, and listening story close.
-        </p>
-        <Button :as="NuxtLink" to="/signin" variant="outline" class="mt-3 w-full" @click="emit('navigate')">
-          Sign in
-        </Button>
-      </div>
-    </div>
 
     <PlaylistCreateDialog v-model:open="createOpen" @created="go(`/playlists/${$event.id}`)" />
   </div>

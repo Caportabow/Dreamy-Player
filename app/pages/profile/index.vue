@@ -18,6 +18,10 @@ const saving = ref(false)
 const usernameDraft = ref('')
 const editingUsername = ref(false)
 const savingUsername = ref(false)
+
+const { status: usernameStatus, message: usernameMessage, run: checkUsername, dispose: disposeUsernameCheck } = useUsernameCheck()
+watch(usernameDraft, (v) => checkUsername(v, auth.user?.username))
+onBeforeUnmount(disposeUsernameCheck)
 const uploading = ref(false)
 const error = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -69,6 +73,9 @@ async function saveUsername(): Promise<void> {
   const next = usernameDraft.value.trim()
   if (!next || next.toLowerCase() === auth.user?.username) {
     editingUsername.value = false
+    return
+  }
+  if (usernameStatus.value === 'taken' || usernameStatus.value === 'invalid') {
     return
   }
   savingUsername.value = true
@@ -258,7 +265,8 @@ useHead({ title: 'Profile' })
                 <Pencil class="h-4 w-4" />
               </button>
             </div>
-            <p class="mt-0.5 flex items-center justify-center gap-1.5 text-sm text-cream-dim sm:justify-start">
+            <div class="mt-0.5 text-sm text-cream-dim">
+            <p class="flex items-center justify-center gap-1.5 sm:justify-start">
               <template v-if="editingUsername">
                 <span class="text-cream-faint">@</span>
                 <Input
@@ -270,7 +278,13 @@ useHead({ title: 'Profile' })
                   @keydown.enter="saveUsername"
                   @keydown.esc="editingUsername = false"
                 />
-                <Button type="button" size="sm" variant="ghost" :disabled="savingUsername" @click="saveUsername">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  :disabled="savingUsername || usernameStatus === 'taken' || usernameStatus === 'invalid'"
+                  @click="saveUsername"
+                >
                   {{ savingUsername ? 'Saving…' : 'Save' }}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" :disabled="savingUsername" @click="editingUsername = false">
@@ -289,6 +303,19 @@ useHead({ title: 'Profile' })
                 </button>
               </template>
             </p>
+            <p
+              v-if="editingUsername && (usernameStatus === 'checking' || usernameStatus === 'valid' || usernameStatus === 'taken' || usernameStatus === 'invalid')"
+              class="mt-1 text-xs"
+              :class="{
+                'text-cream-faint': usernameStatus === 'checking',
+                'text-lavender-300': usernameStatus === 'valid',
+                'text-rose-300/90': usernameStatus === 'taken' || usernameStatus === 'invalid',
+              }"
+              aria-live="polite"
+            >
+              {{ usernameMessage }}
+            </p>
+            </div>
           </template>
 
           <p v-if="error" class="mt-3 rounded-pillow-sm bg-rose-500/10 px-4 py-2.5 text-sm text-rose-200">

@@ -16,10 +16,6 @@ const toast = useToast()
 const isFavourite = computed(() => props.track.favourite ?? library.favouriteIds.has(props.track.id))
 
 async function toggle(): Promise<void> {
-  if (!auth.isSignedIn) {
-    toast.info('Sign in to keep your favourites, playlists, and listening story close.')
-    return
-  }
   const target = !isFavourite.value
   try {
     const ok = await library.toggleFavourite(props.track)

@@ -10,15 +10,15 @@ const sheetOpen = ref(false)
   <div class="relative flex min-h-screen flex-col lg:flex-row">
     <AmbientBackground />
 
-    <!-- Desktop sidebar -->
-    <aside class="sticky top-0 hidden h-screen w-[19rem] shrink-0 p-4 lg:block">
+    <!-- Desktop sidebar (signed-in users only) -->
+    <aside v-if="auth.isSignedIn" class="sticky top-0 hidden h-screen w-[19rem] shrink-0 p-4 lg:block">
       <div class="glass flex h-full flex-col overflow-y-auto rounded-pillow-lg p-5">
         <AppSidebar />
       </div>
     </aside>
 
-    <!-- Mobile top bar -->
-    <header class="sticky top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur-xl lg:hidden">
+    <!-- Mobile top bar (signed-in users only) -->
+    <header v-if="auth.isSignedIn" class="sticky top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur-xl lg:hidden">
       <NuxtLink to="/" class="flex items-center gap-2.5">
         <AppLogo :size="30" />
         <span class="font-display text-lg font-semibold text-cream">Dreamy</span>
@@ -48,7 +48,7 @@ const sheetOpen = ref(false)
       <NuxtPage />
     </main>
 
-    <MobileNav />
+    <MobileNav v-if="auth.isSignedIn" />
     <!-- The player only exists for signed-in users; guests cannot stream media. -->
     <BottomPlayer v-if="auth.isSignedIn" />
     <ExpandedPlayer v-if="auth.isSignedIn" />

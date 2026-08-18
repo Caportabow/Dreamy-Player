@@ -19,6 +19,10 @@ const passkeyLoading = ref(false)
 const error = ref<string | null>(null)
 const signedUp = ref(false)
 
+const { status: usernameStatus, message: usernameMessage, run: checkUsername, dispose: disposeUsernameCheck } = useUsernameCheck()
+watch(username, (v) => checkUsername(v))
+onBeforeUnmount(disposeUsernameCheck)
+
 const nextPath = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 
 async function finishSignUp(): Promise<void> {
@@ -31,6 +35,10 @@ async function submit(): Promise<void> {
   error.value = null
   if (password.value !== confirm.value) {
     error.value = 'Passwords do not match.'
+    return
+  }
+  if (usernameStatus.value === 'taken' || usernameStatus.value === 'invalid') {
+    error.value = usernameMessage.value
     return
   }
   loading.value = true
@@ -87,6 +95,27 @@ useHead({ title: 'Create account' })
             required
           />
           <p class="text-xs text-cream-faint">3–32 characters; letters, numbers, dots, dashes, underscores.</p>
+          <p
+            v-if="usernameStatus === 'checking'"
+            class="text-xs text-cream-faint"
+            aria-live="polite"
+          >
+            Checking availability…
+          </p>
+          <p
+            v-else-if="usernameStatus === 'valid'"
+            class="text-xs text-lavender-300"
+            aria-live="polite"
+          >
+            {{ usernameMessage }}
+          </p>
+          <p
+            v-else-if="usernameStatus === 'taken' || usernameStatus === 'invalid'"
+            class="text-xs text-rose-300/90"
+            aria-live="polite"
+          >
+            {{ usernameMessage }}
+          </p>
         </div>
         <div class="flex flex-col gap-2">
           <Label for="password">Password</Label>
@@ -115,7 +144,12 @@ useHead({ title: 'Create account' })
           {{ error }}
         </p>
 
-        <Button type="submit" size="lg" :disabled="loading" class="mt-1">
+        <Button
+          type="submit"
+          size="lg"
+          :disabled="loading || usernameStatus === 'taken' || usernameStatus === 'invalid'"
+          class="mt-1"
+        >
           <Sparkles class="h-4 w-4" />
           {{ loading ? 'Creating…' : 'Create account' }}
         </Button>
@@ -155,11 +189,6 @@ useHead({ title: 'Create account' })
         >
           Sign in
         </NuxtLink>
-      </p>
-
-      <p class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-cream-faint">
-        <MoonStar class="h-3.5 w-3.5" />
-        Just for you — favourites, playlists, and your listening story stay close.
       </p>
     </div>
   </div>
