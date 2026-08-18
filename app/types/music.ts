@@ -25,11 +25,18 @@ export interface QueueItem {
 
 export interface AuthUser {
   id: string
-  email: string
+  username: string
   profile: {
     displayName: string | null
     avatarKey: string | null
   } | null
+}
+
+export interface PasskeyInfo {
+  id: string
+  name: string
+  createdAt: string
+  lastUsedAt: string | null
 }
 
 export type PlaylistStatus = 'ready' | 'saving'

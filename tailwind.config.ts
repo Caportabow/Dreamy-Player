@@ -119,6 +119,10 @@ export default <Partial<Config>>{
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        'fade-out-down': {
+          from: { opacity: '1', transform: 'translateY(0)' },
+          to: { opacity: '0', transform: 'translateY(8px)' },
+        },
         aurora: {
           '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
           '33%': { transform: 'translate3d(5%, -7%, 0) scale(1.1)' },
@@ -146,6 +150,7 @@ export default <Partial<Config>>{
         'float-slower': 'float-slow 14s ease-in-out infinite',
         'fade-in-up': 'fade-in-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
         'fade-in': 'fade-in 0.6s ease-out both',
+        'fade-out-down': 'fade-out-down 0.25s cubic-bezier(0.22, 1, 0.36, 1) both',
         aurora: 'aurora 28s ease-in-out infinite',
         breathe: 'breathe 9s ease-in-out infinite',
         'eq-1': 'eq-bar 1.05s ease-in-out infinite',

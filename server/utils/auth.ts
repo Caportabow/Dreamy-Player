@@ -9,11 +9,24 @@ export const SESSION_COOKIE = 'dreamy_session'
 
 export interface AuthUser {
   id: string
-  email: string
+  username: string
   profile: {
     displayName: string | null
     avatarKey: string | null
   } | null
+}
+
+/** Shape a database user row (with optional profile) into the public AuthUser. */
+export function toAuthUser(user: {
+  id: string
+  username: string
+  profile?: { displayName: string | null; avatarKey: string | null } | null
+}): AuthUser {
+  return {
+    id: user.id,
+    username: user.username,
+    profile: user.profile ? { displayName: user.profile.displayName, avatarKey: user.profile.avatarKey } : null,
+  }
 }
 
 function hashToken(token: string): string {
@@ -71,13 +84,7 @@ export async function resolveUser(event: H3Event): Promise<AuthUser | null> {
   })
   if (!session || !session.user) return null
 
-  return {
-    id: session.user.id,
-    email: session.user.email,
-    profile: session.user.profile
-      ? { displayName: session.user.profile.displayName, avatarKey: session.user.profile.avatarKey }
-      : null,
-  }
+  return toAuthUser(session.user)
 }
 
 /** Resolve the signed-in user or throw a 401. */

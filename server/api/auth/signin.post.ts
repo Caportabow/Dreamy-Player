@@ -1,21 +1,21 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { users } from '../../db/schema'
-import { createSession, setSessionCookie, type AuthUser } from '../../utils/auth'
+import { createSession, setSessionCookie, toAuthUser } from '../../utils/auth'
 import { verifyPassword } from '../../utils/password'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ email?: string; password?: string }>(event)
+  const body = await readBody<{ username?: string; password?: string }>(event)
 
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : ''
   const password = typeof body.password === 'string' ? body.password : ''
 
-  if (!email || !password) {
-    throw createError({ statusCode: 400, statusMessage: 'Please enter your email and password.' })
+  if (!username || !password) {
+    throw createError({ statusCode: 400, statusMessage: 'Please enter your username and password.' })
   }
 
   const user = await db.query.users.findFirst({
-    where: eq(users.email, email),
+    where: eq(users.username, username),
     with: { profile: true },
   })
 
@@ -24,19 +24,12 @@ export default defineEventHandler(async (event) => {
   if (!user || !valid) {
     throw createError({
       statusCode: 401,
-      statusMessage: 'That email and password combination does not match.',
+      statusMessage: 'That username and password combination does not match.',
     })
   }
 
   const token = await createSession(user.id)
   setSessionCookie(event, token)
 
-  const authUser: AuthUser = {
-    id: user.id,
-    email: user.email,
-    profile: user.profile
-      ? { displayName: user.profile.displayName, avatarKey: user.profile.avatarKey }
-      : null,
-  }
-  return { user: authUser }
+  return { user: toAuthUser(user) }
 })

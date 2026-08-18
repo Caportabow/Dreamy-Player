@@ -15,6 +15,27 @@
       "when": 1787079814527,
       "tag": "0001_cloudy_justin_hammer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787086044736,
+      "tag": "0002_gigantic_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787086049995,
+      "tag": "0003_green_molten_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787086058764,
+      "tag": "0004_fresh_enchantress",
+      "breakpoints": true
     }
   ]
 }

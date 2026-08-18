@@ -35,6 +35,8 @@ useHead({ title: 'History' })
 
 <template>
   <div class="animate-fade-in">
+    <ProfileSubNav />
+
     <header class="mb-6">
       <div class="flex items-center gap-3">
         <div class="flex h-12 w-12 items-center justify-center rounded-pillow-lg bg-gradient-to-br from-plum-600/60 to-violet-700/40 shadow-glow">

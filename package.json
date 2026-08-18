@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@pinia/nuxt": "^0.10.1",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "@vueuse/core": "^13.0.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",

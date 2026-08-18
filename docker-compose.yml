@@ -91,6 +91,9 @@ services:
       MINIO_AVATARS_BUCKET: ${MINIO_AVATARS_BUCKET:-avatars}
       DOWNLOAD_SERVICE_URL: http://download-worker:8787
       DOWNLOAD_SERVICE_SECRET: ${DOWNLOAD_SERVICE_SECRET:-dev-download-secret}
+      # Optional passkey pinning; empty falls back to per-request host detection.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
     ports:
       - "3000:3000"
     volumes:

@@ -1,34 +1,54 @@
 <script setup lang="ts">
-import { LogIn, MoonStar } from 'lucide-vue-next'
+import { Fingerprint, KeyRound, LogIn, MoonStar } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
+import { usePasskeys } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
 const route = useRoute()
 const auth = useAuthStore()
 const player = usePlayerStore()
+const passkeys = usePasskeys()
 const toast = useToast()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const loading = ref(false)
+const passkeyLoading = ref(false)
 const error = ref<string | null>(null)
 
 const nextPath = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 const cameFromGuest = computed(() => route.query.reason === 'guest')
 
+async function finishSignIn(name: string): Promise<void> {
+  await player.restore()
+  toast.success(`Welcome back, ${name}.`)
+  await navigateTo(nextPath.value)
+}
+
 async function submit(): Promise<void> {
   error.value = null
   loading.value = true
   try {
-    await auth.signIn(email.value, password.value)
-    await player.restore()
-    toast.success(`Welcome back, ${auth.displayName}.`)
-    await navigateTo(nextPath.value)
+    await auth.signIn(username.value, password.value)
+    await finishSignIn(auth.displayName)
   } catch (err: any) {
     error.value = apiErrorMessage(err, 'Sign-in failed. Please try again.')
   } finally {
     loading.value = false
+  }
+}
+
+async function signInWithPasskey(): Promise<void> {
+  error.value = null
+  passkeyLoading.value = true
+  try {
+    await passkeys.signInWithPasskey(username.value || undefined)
+    await finishSignIn(auth.displayName)
+  } catch (err: any) {
+    error.value = apiErrorMessage(err, 'Passkey sign-in failed. Please try again.')
+  } finally {
+    passkeyLoading.value = false
   }
 }
 
@@ -55,13 +75,13 @@ useHead({ title: 'Sign in' })
 
       <form class="pillow flex flex-col gap-4 p-6" @submit.prevent="submit">
         <div class="flex flex-col gap-2">
-          <Label for="email">Email</Label>
+          <Label for="username">Username</Label>
           <Input
-            id="email"
-            v-model="email"
-            type="email"
-            autocomplete="email"
-            placeholder="you@example.com"
+            id="username"
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            placeholder="dreamer"
             required
           />
         </div>
@@ -85,6 +105,23 @@ useHead({ title: 'Sign in' })
           <LogIn class="h-4 w-4" />
           {{ loading ? 'Signing in…' : 'Sign in' }}
         </Button>
+
+        <div class="flex items-center gap-3">
+          <span class="h-px flex-1 bg-white/8" />
+          <span class="text-xs uppercase tracking-wider text-cream-faint">or</span>
+          <span class="h-px flex-1 bg-white/8" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          :disabled="passkeyLoading"
+          @click="signInWithPasskey"
+        >
+          <Fingerprint class="h-4 w-4" />
+          {{ passkeyLoading ? 'Waiting for your passkey…' : 'Sign in with a passkey' }}
+        </Button>
       </form>
 
       <p class="mt-6 text-center text-sm text-cream-dim">
@@ -98,8 +135,8 @@ useHead({ title: 'Sign in' })
       </p>
 
       <p class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-cream-faint">
-        <MoonStar class="h-3.5 w-3.5" />
-        Just for you — favourites, playlists, and your listening story stay close.
+        <KeyRound class="h-3.5 w-3.5" />
+        Tip: a saved passkey lets you skip the password entirely.
       </p>
     </div>
   </div>

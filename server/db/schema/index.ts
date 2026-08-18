@@ -1,5 +1,6 @@
 export * from './users'
 export * from './profiles'
+export * from './passkeys'
 export * from './sessions'
 export * from './tracks'
 export * from './user-tracks'

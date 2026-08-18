@@ -1,21 +1,31 @@
 <script setup lang="ts">
-import { MoonStar, Sparkles } from 'lucide-vue-next'
+import { Fingerprint, MoonStar, Sparkles } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
+import { usePasskeys } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
 const route = useRoute()
 const auth = useAuthStore()
 const player = usePlayerStore()
+const passkeys = usePasskeys()
 const toast = useToast()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const confirm = ref('')
 const loading = ref(false)
+const passkeyLoading = ref(false)
 const error = ref<string | null>(null)
+const signedUp = ref(false)
 
 const nextPath = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
+
+async function finishSignUp(): Promise<void> {
+  await player.restore()
+  toast.success(`Welcome to Dreamy, ${auth.displayName}.`)
+  await navigateTo(nextPath.value)
+}
 
 async function submit(): Promise<void> {
   error.value = null
@@ -25,14 +35,25 @@ async function submit(): Promise<void> {
   }
   loading.value = true
   try {
-    await auth.signUp(email.value, password.value)
-    await player.restore()
-    toast.success(`Welcome to Dreamy, ${auth.displayName}.`)
-    await navigateTo(nextPath.value)
+    await auth.signUp(username.value, password.value)
+    signedUp.value = true
   } catch (err: any) {
     error.value = apiErrorMessage(err, 'Sign-up failed. Please try again.')
   } finally {
     loading.value = false
+  }
+}
+
+async function addPasskey(): Promise<void> {
+  error.value = null
+  passkeyLoading.value = true
+  try {
+    await passkeys.registerPasskey()
+    await finishSignUp()
+  } catch (err: any) {
+    error.value = apiErrorMessage(err, 'Could not save the passkey. You can add one later.')
+  } finally {
+    passkeyLoading.value = false
   }
 }
 
@@ -52,17 +73,20 @@ useHead({ title: 'Create account' })
         </p>
       </div>
 
-      <form class="pillow flex flex-col gap-4 p-6" @submit.prevent="submit">
+      <form v-if="!signedUp" class="pillow flex flex-col gap-4 p-6" @submit.prevent="submit">
         <div class="flex flex-col gap-2">
-          <Label for="email">Email</Label>
+          <Label for="username">Username</Label>
           <Input
-            id="email"
-            v-model="email"
-            type="email"
-            autocomplete="email"
-            placeholder="you@example.com"
+            id="username"
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            placeholder="dreamer"
+            minlength="3"
+            maxlength="32"
             required
           />
+          <p class="text-xs text-cream-faint">3–32 characters; letters, numbers, dots, dashes, underscores.</p>
         </div>
         <div class="flex flex-col gap-2">
           <Label for="password">Password</Label>
@@ -97,7 +121,33 @@ useHead({ title: 'Create account' })
         </Button>
       </form>
 
-      <p class="mt-6 text-center text-sm text-cream-dim">
+      <div v-else class="pillow flex flex-col gap-4 p-6">
+        <div class="text-center">
+          <div
+            class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-lavender-400/70 to-plum-600/70 text-night-950"
+          >
+            <Fingerprint class="h-6 w-6" />
+          </div>
+          <h2 class="font-display text-lg font-semibold text-cream">Your account is ready</h2>
+          <p class="mt-1 text-sm leading-relaxed text-cream-dim">
+            Add a passkey so next time you can sign in with just your face, finger, or device.
+          </p>
+        </div>
+
+        <p v-if="error" class="rounded-pillow-sm bg-rose-500/10 px-4 py-2.5 text-sm text-rose-200">
+          {{ error }}
+        </p>
+
+        <Button type="button" size="lg" :disabled="passkeyLoading" @click="addPasskey">
+          <Fingerprint class="h-4 w-4" />
+          {{ passkeyLoading ? 'Waiting for your passkey…' : 'Add a passkey' }}
+        </Button>
+        <Button type="button" size="lg" variant="outline" :disabled="passkeyLoading" @click="finishSignUp">
+          Skip for now
+        </Button>
+      </div>
+
+      <p v-if="!signedUp" class="mt-6 text-center text-sm text-cream-dim">
         Already have an account?
         <NuxtLink
           :to="{ path: '/signin', query: route.query }"

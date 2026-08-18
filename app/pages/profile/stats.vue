@@ -39,6 +39,8 @@ function playTop(entry: { track: Track }): void {
 
 <template>
   <div class="animate-fade-in">
+    <ProfileSubNav />
+
     <header class="mb-6 flex items-center gap-3">
       <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-pillow-lg bg-gradient-to-br from-plum-600/60 to-violet-700/40 shadow-glow">
         <BarChart3 class="h-5 w-5 text-lavender-200" />

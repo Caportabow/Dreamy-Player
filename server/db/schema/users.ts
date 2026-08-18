@@ -3,10 +3,11 @@ import { relations } from 'drizzle-orm'
 import { profiles } from './profiles'
 import { sessions } from './sessions'
 import { userTracks } from './user-tracks'
+import { passkeys } from './passkeys'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
+  username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -18,4 +19,5 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   sessions: many(sessions),
   library: many(userTracks),
+  passkeys: many(passkeys),
 }))

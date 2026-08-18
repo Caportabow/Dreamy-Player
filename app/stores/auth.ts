@@ -24,18 +24,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function signIn(email: string, password: string): Promise<void> {
+  async function signIn(username: string, password: string): Promise<void> {
     const res = await $fetch<{ user: AuthUser }>('/api/auth/signin', {
       method: 'POST',
-      body: { email, password },
+      body: { username, password },
     })
     user.value = res.user
   }
 
-  async function signUp(email: string, password: string): Promise<void> {
+  async function signUp(username: string, password: string): Promise<void> {
     const res = await $fetch<{ user: AuthUser }>('/api/auth/signup', {
       method: 'POST',
-      body: { email, password },
+      body: { username, password },
     })
     user.value = res.user
   }

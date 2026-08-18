@@ -1,24 +1,13 @@
 <script setup lang="ts">
-import {
-  BarChart3,
-  Download,
-  Heart,
-  History,
-  Library,
-  ListMusic,
-  LogOut,
-  Plus,
-} from 'lucide-vue-next'
+import { Download, Heart, Library, ListMusic, Plus, UserRound } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 import { useAuthStore } from '~/stores/auth'
-import { usePlayerStore } from '~/stores/player'
 import { useToast } from '~/composables/useToast'
 
 const emit = defineEmits<{ navigate: [] }>()
 
 const route = useRoute()
 const auth = useAuthStore()
-const player = usePlayerStore()
 const toast = useToast()
 const createOpen = ref(false)
 
@@ -27,32 +16,12 @@ const navItems = [
   { label: 'Favourites', to: '/favourites', icon: Heart },
   { label: 'Playlists', to: '/playlists', icon: ListMusic },
   { label: 'Add Music', to: '/add', icon: Download },
-  { label: 'History', to: '/history', icon: History },
-  { label: 'Statistics', to: '/stats', icon: BarChart3 },
+  { label: 'Profile', to: '/profile', icon: UserRound },
 ]
 
 function isActive(to: string): boolean {
   if (to === '/') return route.path === '/'
   return route.path === to || route.path.startsWith(`${to}/`)
-}
-
-function initials(): string {
-  const name = auth.displayName || auth.user?.email || '?'
-  return name
-    .split(/[\s@._-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join('')
-}
-
-async function onSignOut(): Promise<void> {
-  await auth.signOut()
-  player.reset()
-  toast.info('Signed out. Sweet dreams.')
-  // Hard refresh so every store, the audio element, and the session start
-  // clean; the guest middleware then lands on the sign-in page.
-  window.location.reload()
 }
 
 function onCreatePlaylist(): void {
@@ -103,42 +72,15 @@ function go(to: string): void {
       Create playlist
     </button>
 
-    <div class="mt-auto">
-      <template v-if="auth.isSignedIn">
-        <div class="mb-2 flex items-center gap-3 rounded-pillow-sm bg-white/4 px-3 py-2.5">
-          <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-lavender-400/70 to-plum-600/70 text-sm font-semibold text-night-950"
-          >
-            {{ initials() }}
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm text-cream">{{ auth.displayName }}</p>
-            <p class="truncate text-[11px] text-cream-dim">{{ auth.user?.email }}</p>
-          </div>
-          <Tooltip content-class="z-[70]">
-            <button
-              type="button"
-              class="rounded-full p-2 text-cream-dim transition-colors hover:bg-white/8 hover:text-cream"
-              aria-label="Sign out"
-              @click="onSignOut"
-            >
-              <LogOut class="h-4 w-4" />
-            </button>
-            <template #content>Sign out</template>
-          </Tooltip>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="rounded-pillow-sm bg-white/4 p-4">
-          <p class="text-sm leading-relaxed text-cream-dim">
-            Sign in to keep your favourites, playlists, and listening story close.
-          </p>
-          <Button :as="NuxtLink" to="/signin" variant="outline" class="mt-3 w-full" @click="emit('navigate')">
-            Sign in
-          </Button>
-        </div>
-      </template>
+    <div v-if="!auth.isSignedIn" class="mt-auto">
+      <div class="rounded-pillow-sm bg-white/4 p-4">
+        <p class="text-sm leading-relaxed text-cream-dim">
+          Sign in to keep your favourites, playlists, and listening story close.
+        </p>
+        <Button :as="NuxtLink" to="/signin" variant="outline" class="mt-3 w-full" @click="emit('navigate')">
+          Sign in
+        </Button>
+      </div>
     </div>
 
     <PlaylistCreateDialog v-model:open="createOpen" @created="go(`/playlists/${$event.id}`)" />

@@ -20,9 +20,19 @@ export function validatePassword(plain: string): string | null {
   return null
 }
 
-export function validateEmail(email: string): string | null {
-  if (typeof email !== 'string' || email.length > 254) return 'Please enter a valid email address.'
-  const trimmed = email.trim()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) return 'Please enter a valid email address.'
+export const USERNAME_MIN_LENGTH = 3
+export const USERNAME_MAX_LENGTH = 32
+
+export function validateUsername(username: string): string | null {
+  if (
+    typeof username !== 'string' ||
+    username.length < USERNAME_MIN_LENGTH ||
+    username.length > USERNAME_MAX_LENGTH
+  ) {
+    return `Username must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters.`
+  }
+  if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/.test(username)) {
+    return 'Username can only contain letters, numbers, dots, dashes, and underscores.'
+  }
   return null
 }
