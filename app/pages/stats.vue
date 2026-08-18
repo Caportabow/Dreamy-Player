@@ -5,7 +5,6 @@ import { usePlayerStore } from '~/stores/player'
 import { formatListenTime } from '~/composables/useTimeFormat'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-definePageMeta({ middleware: 'auth' })
 
 const player = usePlayerStore()
 const toast = useToast()

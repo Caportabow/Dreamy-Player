@@ -465,12 +465,14 @@ export const usePlayerStore = defineStore('player', () => {
   async function persistNow(): Promise<void> {
     if (suppressPersist || restoring.value) return
     const payload = toPayload()
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-    } catch {
-      // storage may be unavailable; ignore
-    }
+    // Only signed-in users have a player; don't leave a queue in local
+    // storage that could leak across accounts or show an unplayable bar.
     if (auth.isSignedIn) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+      } catch {
+        // storage may be unavailable; ignore
+      }
       try {
         await $fetch('/api/player', { method: 'PUT', body: payload })
       } catch {
@@ -483,6 +485,9 @@ export const usePlayerStore = defineStore('player', () => {
   async function restore(): Promise<void> {
     restoring.value = true
     try {
+      // Guests cannot stream media, so they get no player at all — not even
+      // a restored queue from a previous session.
+      if (!auth.isSignedIn) return
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         try {
@@ -542,6 +547,34 @@ export const usePlayerStore = defineStore('player', () => {
     return getEl()
   }
 
+  /** Wipe the player (queue, audio, cache) — used on sign-out. */
+  function reset(): void {
+    if (el) {
+      el.pause()
+      el.removeAttribute('src')
+      el.load()
+    }
+    session = null
+    suppressPersist = true
+    queue.value = []
+    currentIndex.value = -1
+    position.value = 0
+    duration.value = 0
+    volume.value = 0.8
+    muted.value = false
+    shuffle.value = false
+    repeatMode.value = 'off'
+    isPlaying.value = false
+    isExpanded.value = false
+    audioError.value = null
+    suppressPersist = false
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // storage may be unavailable; ignore
+    }
+  }
+
   return {
     queue,
     currentIndex,
@@ -558,6 +591,7 @@ export const usePlayerStore = defineStore('player', () => {
     order,
     current,
     getAudioElement,
+    reset,
     loadTrack,
     playTrackList,
     playQueue,

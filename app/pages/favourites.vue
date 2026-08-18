@@ -3,7 +3,6 @@ import { Heart, Play, Search, Shuffle } from 'lucide-vue-next'
 import type { Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 
-definePageMeta({ middleware: 'auth' })
 
 const player = usePlayerStore()
 const tracks = ref<Track[]>([])

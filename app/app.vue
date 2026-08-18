@@ -14,8 +14,9 @@ import { usePlayerStore } from '~/stores/player'
 const auth = useAuthStore()
 const player = usePlayerStore()
 
-// Restore the player on initial load (guests use their local cache; the
-// sign-in watcher below handles the signed-in server state).
+// Restore the player on initial load. Guests have no player at all, so
+// restore() only acts for signed-in users; the watcher below also re-syncs
+// after a fresh sign-in.
 onMounted(() => {
   player.restore()
 })

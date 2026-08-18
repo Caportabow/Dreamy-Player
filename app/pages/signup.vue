@@ -109,7 +109,7 @@ useHead({ title: 'Create account' })
 
       <p class="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-cream-faint">
         <MoonStar class="h-3.5 w-3.5" />
-        Guests can still browse and play the library.
+        Just for you — favourites, playlists, and your listening story stay close.
       </p>
     </div>
   </div>

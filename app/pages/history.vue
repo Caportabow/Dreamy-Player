@@ -4,7 +4,6 @@ import type { HistoryEvent } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-definePageMeta({ middleware: 'auth' })
 
 const player = usePlayerStore()
 const toast = useToast()

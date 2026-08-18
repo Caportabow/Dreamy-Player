@@ -4,7 +4,6 @@ import type { SearchResult } from '~/types/music'
 import { useDownloadsStore } from '~/stores/downloads'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-definePageMeta({ middleware: 'auth' })
 
 const downloads = useDownloadsStore()
 const toast = useToast()

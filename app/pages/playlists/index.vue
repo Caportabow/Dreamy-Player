@@ -3,7 +3,6 @@ import { Plus } from 'lucide-vue-next'
 import type { Playlist } from '~/types/music'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-definePageMeta({ middleware: 'auth' })
 
 const toast = useToast()
 const playlists = ref<Playlist[]>([])

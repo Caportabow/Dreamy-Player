@@ -13,7 +13,6 @@ import type { Playlist, Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const toast = useToast()

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Menu } from 'lucide-vue-next'
+import { useAuthStore } from '~/stores/auth'
 
+const auth = useAuthStore()
 const sheetOpen = ref(false)
 </script>
 
@@ -47,7 +49,8 @@ const sheetOpen = ref(false)
     </main>
 
     <MobileNav />
-    <BottomPlayer />
-    <ExpandedPlayer />
+    <!-- The player only exists for signed-in users; guests cannot stream media. -->
+    <BottomPlayer v-if="auth.isSignedIn" />
+    <ExpandedPlayer v-if="auth.isSignedIn" />
   </div>
 </template>

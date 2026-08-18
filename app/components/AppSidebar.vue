@@ -11,12 +11,14 @@ import {
 } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 import { useAuthStore } from '~/stores/auth'
+import { usePlayerStore } from '~/stores/player'
 import { useToast } from '~/composables/useToast'
 
 const emit = defineEmits<{ navigate: [] }>()
 
 const route = useRoute()
 const auth = useAuthStore()
+const player = usePlayerStore()
 const toast = useToast()
 const createOpen = ref(false)
 
@@ -46,8 +48,11 @@ function initials(): string {
 
 async function onSignOut(): Promise<void> {
   await auth.signOut()
+  player.reset()
   toast.info('Signed out. Sweet dreams.')
-  await navigateTo('/')
+  // Hard refresh so every store, the audio element, and the session start
+  // clean; the guest middleware then lands on the sign-in page.
+  window.location.reload()
 }
 
 function onCreatePlaylist(): void {
