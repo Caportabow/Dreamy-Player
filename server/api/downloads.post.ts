@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../db'
-import { downloadJobs, tracks } from '../db/schema'
+import { downloadJobs, tracks, userTracks } from '../db/schema'
 import { getCurrentUser } from '../utils/auth'
 import { env } from '../utils/env'
 import { serviceAuthHeaders } from '../utils/service-auth'
@@ -56,12 +56,22 @@ export default defineEventHandler(async (event) => {
 
   const sourceId = extractYoutubeId(sourceUrl)
   if (sourceId) {
-    const dup = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
-    if (dup) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: 'This song is already in the library.',
+    const existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
+    if (existing) {
+      // The song already lives in the shared catalog (someone else added it,
+      // or this user did before). Add it to this user's library without
+      // re-downloading anything — the stored file is reused as-is.
+      const inLibrary = await db.query.userTracks.findFirst({
+        where: and(eq(userTracks.userId, user.id), eq(userTracks.trackId, existing.id)),
       })
+      if (inLibrary) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: 'This song is already in your library.',
+        })
+      }
+      await db.insert(userTracks).values({ userId: user.id, trackId: existing.id }).onConflictDoNothing()
+      return { job: null, trackId: existing.id }
     }
   }
 

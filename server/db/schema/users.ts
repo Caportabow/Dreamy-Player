@@ -2,6 +2,7 @@ import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { profiles } from './profiles'
 import { sessions } from './sessions'
+import { userTracks } from './user-tracks'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -16,4 +17,5 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [profiles.userId],
   }),
   sessions: many(sessions),
+  library: many(userTracks),
 }))

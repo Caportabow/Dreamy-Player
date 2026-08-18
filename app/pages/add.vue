@@ -30,7 +30,7 @@ async function startDownload(): Promise<void> {
   if (!selected.value) return
   submitting.value = true
   try {
-    const job = await downloads.createJob({
+    const { job, addedTrackId } = await downloads.createJob({
       sourceUrl: selected.value.url,
       title: selected.value.title,
       artist: selected.value.artist,
@@ -39,9 +39,11 @@ async function startDownload(): Promise<void> {
     })
     if (job) {
       toast.success('Added to the queue — it will appear in your library soon.')
-      selected.value = null
-      query.value = ''
+    } else if (addedTrackId) {
+      toast.success('This song was already saved — added to your library.')
     }
+    selected.value = null
+    query.value = ''
   } catch (err: any) {
     toast.error(apiErrorMessage(err, 'The download could not be started.'))
   } finally {

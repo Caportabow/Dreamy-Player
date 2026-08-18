@@ -26,6 +26,15 @@ export default defineNuxtConfig({
     },
   },
 
+  vite: {
+    server: {
+      // In the compose stack the download worker calls back to the dev server
+      // as http://nuxt:3000; without this, Vite's DNS-rebinding protection
+      // answers every such request with 403.
+      allowedHosts: true,
+    },
+  },
+
   typescript: {
     strict: true,
     typeCheck: false,

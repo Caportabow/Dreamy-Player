@@ -4,6 +4,7 @@ import { users } from './users'
 import { favourites } from './favourites'
 import { playlistTracks } from './playlist-tracks'
 import { playHistory } from './play-history'
+import { userTracks } from './user-tracks'
 
 export const tracks = pgTable(
   'tracks',
@@ -38,4 +39,5 @@ export const tracksRelations = relations(tracks, ({ one, many }) => ({
   favourites: many(favourites),
   playlistEntries: many(playlistTracks),
   historyEntries: many(playHistory),
+  libraryEntries: many(userTracks),
 }))

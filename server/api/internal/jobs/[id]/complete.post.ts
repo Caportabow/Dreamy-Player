@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../../../../db'
-import { downloadJobs, tracks } from '../../../../db/schema'
+import { downloadJobs, tracks, userTracks } from '../../../../db/schema'
 import { requireServiceAuth } from '../../../../utils/service-auth'
+import { bucketForKey, removeObject } from '../../../../storage/minio'
 
 const MAX_DURATION = 300
 
@@ -47,10 +48,24 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Rejected track: invalid audio key.' })
   }
 
-  const trackId = typeof body.id === 'string' && body.id ? body.id : randomUUID()
-
-  const existing = await db.query.tracks.findFirst({ where: eq(tracks.id, trackId) })
-  if (!existing) {
+  // If another user added the same song while this job was running, reuse
+  // that catalog entry — the song must never be stored twice.
+  let trackId: string | null = null
+  if (sourceId) {
+    const existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
+    if (existing) {
+      trackId = existing.id
+      // This job's freshly uploaded audio is now redundant — remove it.
+      if (audioKey && audioKey !== existing.audioKey) {
+        const bucket = bucketForKey(audioKey)
+        if (bucket) {
+          await removeObject(bucket, audioKey).catch(() => {})
+        }
+      }
+    }
+  }
+  if (!trackId) {
+    trackId = typeof body.id === 'string' && body.id ? body.id : randomUUID()
     await db.insert(tracks).values({
       id: trackId,
       title,
@@ -63,6 +78,9 @@ export default defineEventHandler(async (event) => {
       addedBy: job.userId,
     })
   }
+
+  // Every completed job adds the song to its owner's library.
+  await db.insert(userTracks).values({ userId: job.userId, trackId }).onConflictDoNothing()
 
   await db
     .update(downloadJobs)

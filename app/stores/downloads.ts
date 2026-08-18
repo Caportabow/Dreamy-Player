@@ -49,16 +49,22 @@ export const useDownloadsStore = defineStore('downloads', () => {
     artist: string
     duration: number
     artworkUrl: string
-  }): Promise<DownloadJob | null> {
+  }): Promise<{ job: DownloadJob | null; addedTrackId: string | null }> {
     creating.value = true
     try {
-      const res = await $fetch<{ job: DownloadJob }>('/api/downloads', {
+      const res = await $fetch<{ job: DownloadJob | null; trackId?: string }>('/api/downloads', {
         method: 'POST',
         body: selection,
       })
-      jobs.value.unshift(res.job)
-      ensurePolling()
-      return res.job
+      if (res.job) {
+        jobs.value.unshift(res.job)
+        ensurePolling()
+        return { job: res.job, addedTrackId: null }
+      }
+      // The song was already in the shared catalog — it was added to this
+      // user's library instantly, no download job needed.
+      if (res.trackId) library.touch()
+      return { job: null, addedTrackId: res.trackId ?? null }
     } catch (err: any) {
       throw new Error(err?.data?.message || 'The download could not be started.')
     } finally {
