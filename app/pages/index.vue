@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDownUp, Search, X } from 'lucide-vue-next'
+import { ArrowDownUp, Check, Search, X } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
@@ -19,6 +19,15 @@ const sortOptions = [
   { value: 'title', label: 'Title' },
   { value: 'artist', label: 'Artist' },
 ]
+
+const currentSortLabel = computed(
+  () => sortOptions.find((o) => o.value === library.sort)?.label ?? 'Recently added',
+)
+
+/** "Newest first" reads naturally for added; A→Z / Z→A for names. */
+const orderLabels = computed(() =>
+  library.sort === 'added' ? ['Newest first', 'Oldest first'] : ['A → Z', 'Z → A'],
+)
 
 /** Search the download service for songs that could be added to the library. */
 function runRemoteSearch(): void {
@@ -91,8 +100,8 @@ function changeSort(value: string): void {
   library.fetchTracks()
 }
 
-function toggleOrder(): void {
-  library.order = library.order === 'desc' ? 'asc' : 'desc'
+function setOrder(value: 'asc' | 'desc'): void {
+  library.order = value
   library.fetchTracks()
 }
 
@@ -125,31 +134,84 @@ useHead({ title: 'Library' })
             class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
             aria-label="Search songs to play or add"
           />
-          <button
-            v-if="searchInput"
-            type="button"
-            class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
-            aria-label="Clear search and return to the library"
-            title="Clear search"
-            @click="clearSearch"
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 scale-50"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-50"
           >
-            <X class="h-3.5 w-3.5" />
-          </button>
+            <button
+              v-if="searchInput"
+              type="button"
+              class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
+              aria-label="Clear search and return to the library"
+              title="Clear search"
+              @click="clearSearch"
+            >
+              <X class="h-3.5 w-3.5" />
+            </button>
+          </Transition>
         </div>
 
-        <div class="relative">
-          <select
-            :value="library.sort"
-            class="input-soft w-auto cursor-pointer appearance-none pr-9"
-            aria-label="Sort tracks"
-            @change="changeSort(($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
-            </option>
-          </select>
-          <ArrowDownUp class="pointer-events-none absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cream-faint" />
+        <!-- Sort only affects the library grid, not remote search results — hide it while a query is active.
+             The wrapper collapses its width so the search bar glides wider instead of jumping. -->
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="w-0 opacity-0"
+          enter-to-class="w-9 opacity-100"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="w-9 opacity-100"
+          leave-to-class="w-0 opacity-0"
+        >
+        <div v-if="!searchInput.trim()" class="w-9 overflow-hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="subtle"
+                size="icon"
+                class="h-9 w-9 rounded-full text-cream-muted hover:text-cream"
+                :aria-label="`Sort by ${currentSortLabel}`"
+                :title="`Sort by ${currentSortLabel}`"
+              >
+                <ArrowDownUp class="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-44">
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+              <DropdownMenuItem
+                v-for="opt in sortOptions"
+                :key="opt.value"
+                :class="library.sort === opt.value ? 'text-lavender-200' : ''"
+                @select="changeSort(opt.value)"
+              >
+                <Check v-if="library.sort === opt.value" class="h-4 w-4" />
+                <span v-else class="h-4 w-4" />
+                {{ opt.label }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Order</DropdownMenuLabel>
+              <DropdownMenuItem
+                :class="library.order === 'desc' ? 'text-lavender-200' : ''"
+                @select="setOrder('desc')"
+              >
+                <Check v-if="library.order === 'desc'" class="h-4 w-4" />
+                <span v-else class="h-4 w-4" />
+                {{ orderLabels[0] }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                :class="library.order === 'asc' ? 'text-lavender-200' : ''"
+                @select="setOrder('asc')"
+              >
+                <Check v-if="library.order === 'asc'" class="h-4 w-4" />
+                <span v-else class="h-4 w-4" />
+                {{ orderLabels[1] }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+        </Transition>
       </div>
     </header>
 
