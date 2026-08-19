@@ -42,7 +42,7 @@ function playAll(): void {
 
 function shuffleAll(): void {
   if (tracks.value.length === 0) return
-  player.playTrackList([...tracks.value].sort(() => Math.random() - 0.5), 0)
+  player.playTrackList(shuffleArray(tracks.value), 0)
 }
 
 // ---- drag & drop reorder (optimistic) ----

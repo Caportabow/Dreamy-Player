@@ -30,9 +30,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-/** Space toggles play/pause from anywhere — a music player's first instinct. */
+/**
+ * Keyboard shortcuts for the player: Space toggles play/pause, ←/→ seek,
+ * M mutes. Media keys are deliberately not handled here — they already flow
+ * through the OS Media Session integration in the player store, and
+ * double-handling would skip two tracks at once.
+ */
 function onKeydown(e: KeyboardEvent): void {
-  if (e.code !== 'Space') return
   // Never hijack keys while typing or inside dialogs/menus/dropdowns.
   const target = e.target as HTMLElement | null
   if (
@@ -41,11 +45,31 @@ function onKeydown(e: KeyboardEvent): void {
     return
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return
-  // The expanded player already owns the space key while it is open.
+  if (e.code.startsWith('Media')) return
+  // The expanded player already owns Space (and Escape) while it is open.
   if (player.isExpanded) return
   if (!player.current) return
-  e.preventDefault()
-  player.toggle()
+
+  if (e.code === 'Space') {
+    e.preventDefault()
+    player.toggle()
+    return
+  }
+  if (e.key === 'm' || e.key === 'M') {
+    e.preventDefault()
+    player.toggleMute()
+    return
+  }
+  // ← / → seek by 10s, matching the media-session default step.
+  if (e.code === 'ArrowLeft') {
+    e.preventDefault()
+    player.seek(player.position - 10)
+    return
+  }
+  if (e.code === 'ArrowRight') {
+    e.preventDefault()
+    player.seek(player.position + 10)
+  }
 }
 
 // After sign-in/out, make sure player and download state land in the right

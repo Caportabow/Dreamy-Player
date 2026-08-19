@@ -169,8 +169,12 @@ function playAll(): void {
 }
 
 function shuffleAll(): void {
-  if (library.tracks.length === 0) return
-  player.playTrackList([...library.sortedTracks].sort(() => Math.random() - 0.5), 0)
+  const tracks = library.sortedTracks
+  if (tracks.length === 0) return
+  // Smart shuffle: interleaves the two halves of the sorted list, so the
+  // queue stays spread across the active sort direction (newer↔older, A↔Z)
+  // instead of random clumps.
+  player.playTrackList(smartShuffle(tracks), 0)
 }
 
 // Job polling lives in app.vue now — this page only loads the library.

@@ -40,8 +40,7 @@ function onToggleTrack(track: Track, favourite: boolean): void {
 
 function shuffleAll(): void {
   if (tracks.value.length === 0) return
-  const shuffled = [...tracks.value].sort(() => Math.random() - 0.5)
-  player.playTrackList(shuffled, 0)
+  player.playTrackList(shuffleArray(tracks.value), 0)
 }
 
 onMounted(fetchFavourites)
