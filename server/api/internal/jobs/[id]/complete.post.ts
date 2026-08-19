@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { db } from '../../../../db'
 import { downloadJobs, tracks, userTracks } from '../../../../db/schema'
 import { requireServiceAuth } from '../../../../utils/service-auth'
@@ -58,24 +58,65 @@ export default defineEventHandler(async (event) => {
 
   // If the same song was added while this job was running, reuse that catalog
   // entry — the song must never be stored twice. First by exact YouTube video,
-  // then by iTunes track id (same song, different upload).
+  // then by iTunes track id (same song, different upload). Soft-deleted rows
+  // are skipped: they have no audio file and are revived further down instead.
   let trackId: string | null = null
   let existingAudioKey: string | null = null
+  let deduped = false
   if (sourceId) {
-    const existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
+    const existing = await db.query.tracks.findFirst({
+      where: and(eq(tracks.sourceId, sourceId), isNull(tracks.deletedAt)),
+    })
     if (existing) {
       trackId = existing.id
       existingAudioKey = existing.audioKey
+      deduped = true
     }
   }
   if (!trackId && itunesId) {
-    const existing = await db.query.tracks.findFirst({ where: eq(tracks.itunesId, itunesId) })
+    const existing = await db.query.tracks.findFirst({
+      where: and(eq(tracks.itunesId, itunesId), isNull(tracks.deletedAt)),
+    })
     if (existing) {
       trackId = existing.id
       existingAudioKey = existing.audioKey
+      deduped = true
     }
   }
-  if (trackId) {
+  if (!trackId) {
+    // The song was deleted from the library before, but its catalog row was
+    // retained so history/statistics survive. Revive that row with the fresh
+    // audio instead of creating a duplicate entry — the track keeps its
+    // identity, so stats and history stay unified.
+    const revived = await db.query.tracks.findFirst({
+      where: and(
+        or(
+          sourceId ? eq(tracks.sourceId, sourceId) : undefined,
+          itunesId ? eq(tracks.itunesId, itunesId) : undefined,
+        ),
+        isNotNull(tracks.deletedAt),
+      ),
+    })
+    if (revived) {
+      await db
+        .update(tracks)
+        .set({
+          deletedAt: null,
+          title,
+          artist,
+          album,
+          itunesId,
+          duration,
+          audioKey,
+          artworkKey,
+          sourceUrl,
+          sourceId,
+        })
+        .where(eq(tracks.id, revived.id))
+      trackId = revived.id
+    }
+  }
+  if (trackId && deduped) {
     // This job's freshly uploaded audio is now redundant — remove it.
     if (audioKey && audioKey !== existingAudioKey) {
       const bucket = bucketForKey(audioKey)
@@ -83,7 +124,7 @@ export default defineEventHandler(async (event) => {
         await removeObject(bucket, audioKey).catch(() => {})
       }
     }
-  } else {
+  } else if (!trackId) {
     trackId = typeof body.id === 'string' && body.id ? body.id : randomUUID()
     await db.insert(tracks).values({
       id: trackId,

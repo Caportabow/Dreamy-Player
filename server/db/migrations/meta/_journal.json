@@ -57,6 +57,13 @@
       "when": 1787102579982,
       "tag": "0007_add_itunes_id",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787105606697,
+      "tag": "0008_soft_delete_tracks",
+      "breakpoints": true
     }
   ]
 }

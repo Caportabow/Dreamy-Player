@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db'
-import { favourites, tracks, userTracks } from '../../db/schema'
+import { favourites, playlistTracks, tracks, userTracks } from '../../db/schema'
 import { getCurrentUser } from '../../utils/auth'
 import { bucketForKey, removeObject } from '../../storage/minio'
 
@@ -22,9 +22,11 @@ export default defineEventHandler(async (event) => {
     .delete(favourites)
     .where(and(eq(favourites.userId, user.id), eq(favourites.trackId, id)))
 
-  // 3. If nobody else has this song, the shared catalog entry is now orphaned
-  //    — purge it (FKs cascade playlists, history, favourites) and remove the
-  //    stored audio/artwork so nothing lingers on disk.
+  // 3. If nobody else has this song, the shared catalog entry is now orphaned.
+  //    Soft-delete it: the row (and its artwork) stays so play history and
+  //    statistics keep rendering the song — only the audio file is freed, and
+  //    the song leaves every playlist and favourite. This must never erase
+  //    anyone's listening history.
   const remaining = await db
     .select({ userId: userTracks.userId })
     .from(userTracks)
@@ -33,14 +35,16 @@ export default defineEventHandler(async (event) => {
 
   let purged = false
   if (remaining.length === 0) {
-    await db.delete(tracks).where(eq(tracks.id, id))
+    await db.update(tracks).set({ deletedAt: new Date() }).where(eq(tracks.id, id))
+    await db.delete(playlistTracks).where(eq(playlistTracks.trackId, id))
+    await db.delete(favourites).where(eq(favourites.trackId, id))
     purged = true
-    const removeFile = async (key: string | null): Promise<void> => {
-      if (!key) return
-      const bucket = bucketForKey(key)
-      if (bucket) await removeObject(bucket, key).catch(() => {})
+    // The audio is the storage cost worth freeing; the artwork (a few KB) is
+    // kept so deleted songs still show their cover in history/statistics.
+    if (track.audioKey) {
+      const bucket = bucketForKey(track.audioKey)
+      if (bucket) await removeObject(bucket, track.audioKey).catch(() => {})
     }
-    await Promise.all([removeFile(track.audioKey), removeFile(track.artworkKey)])
   }
 
   return { removed: true, purged }

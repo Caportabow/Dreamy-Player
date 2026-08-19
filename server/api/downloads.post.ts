@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../db'
 import { downloadJobs, tracks, userTracks } from '../db/schema'
 import { getCurrentUser } from '../utils/auth'
@@ -62,13 +62,19 @@ export default defineEventHandler(async (event) => {
 
   const sourceId = extractYoutubeId(sourceUrl)
   let existing: { id: string } | undefined
+  // Only live catalog entries count — a soft-deleted track has no audio file
+  // and must be re-downloaded fresh (which revives the row on completion).
   if (sourceId) {
-    existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
+    existing = await db.query.tracks.findFirst({
+      where: and(eq(tracks.sourceId, sourceId), isNull(tracks.deletedAt)),
+    })
   }
   // Same song under a different YouTube upload — the catalog entry (and its
   // stored file) is reused as-is, nothing is re-downloaded.
   if (!existing && itunesId) {
-    existing = await db.query.tracks.findFirst({ where: eq(tracks.itunesId, itunesId) })
+    existing = await db.query.tracks.findFirst({
+      where: and(eq(tracks.itunesId, itunesId), isNull(tracks.deletedAt)),
+    })
   }
   if (existing) {
     // The song already lives in the shared catalog (someone else added it,

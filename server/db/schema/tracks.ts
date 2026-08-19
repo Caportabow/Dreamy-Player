@@ -24,6 +24,13 @@ export const tracks = pgTable(
     itunesId: text('itunes_id'),
     addedBy: text('added_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Set when the last holder removes the song from the library. The row is
+     * retained (soft delete) so play history and statistics keep rendering —
+     * only the audio file is freed. A re-download revives the row instead of
+     * creating a duplicate.
+     */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => [
     index('tracks_title_idx').on(t.title),
