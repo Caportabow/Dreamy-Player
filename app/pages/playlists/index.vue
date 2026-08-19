@@ -3,7 +3,6 @@ import { ListMusic, Plus } from 'lucide-vue-next'
 import type { Playlist } from '~/types/music'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-
 const toast = useToast()
 const playlists = ref<Playlist[]>([])
 const loading = ref(true)
@@ -49,7 +48,7 @@ useHead({ title: 'Playlists' })
           <ListMusic class="h-5 w-5 text-lavender-200" />
         </div>
         <div>
-          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Playlists</h1>
+          <h1 class="font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">Playlists</h1>
           <p class="mt-1 text-sm text-cream-dim">Shelves you have arranged yourself</p>
         </div>
       </div>
@@ -60,11 +59,16 @@ useHead({ title: 'Playlists' })
     </header>
 
     <div v-if="loading && playlists.length === 0" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      <Skeleton v-for="i in 4" :key="i" class="aspect-[4/5] rounded-pillow" />
+      <div v-for="i in 4" :key="i" class="pillow-card p-3">
+        <Skeleton class="mb-3 aspect-square w-full rounded-pillow-sm" />
+        <Skeleton class="mb-2 h-4 w-3/4" />
+        <Skeleton class="h-3 w-1/2" />
+      </div>
     </div>
 
     <EmptyState
       v-else-if="playlists.length === 0"
+      icon="playlist"
       title="No playlists yet"
       description="Create a shelf for a mood, a season, or a single glowing song."
     >

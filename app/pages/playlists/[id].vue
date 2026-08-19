@@ -4,7 +4,6 @@ import type { Playlist, Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-
 const route = useRoute()
 const toast = useToast()
 const player = usePlayerStore()
@@ -167,6 +166,7 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
 
       <EmptyState
         v-if="tracks.length === 0"
+        icon="playlist"
         title="This shelf is empty"
         description="Add a few songs and arrange them just so — drag to reorder."
       >

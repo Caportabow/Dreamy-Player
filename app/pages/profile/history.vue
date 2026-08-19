@@ -4,7 +4,6 @@ import type { HistoryEvent } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-
 const player = usePlayerStore()
 const toast = useToast()
 const events = ref<HistoryEvent[]>([])
@@ -43,7 +42,7 @@ useHead({ title: 'History' })
           <HistoryIcon class="h-5 w-5 text-lavender-200" />
         </div>
         <div>
-          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">History</h1>
+          <h1 class="font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">History</h1>
           <p class="mt-0.5 text-sm text-cream-dim">Your recent listening, in reverse order</p>
         </div>
       </div>
@@ -55,6 +54,7 @@ useHead({ title: 'History' })
 
     <EmptyState
       v-else-if="events.length === 0"
+      icon="history"
       title="Nothing played yet"
       description="Songs you listen to for more than a moment will gather here, softly."
     />

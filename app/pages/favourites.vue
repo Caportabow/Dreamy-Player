@@ -3,7 +3,6 @@ import { Heart, Play, Search, Shuffle } from 'lucide-vue-next'
 import type { Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 
-
 const player = usePlayerStore()
 const tracks = ref<Track[]>([])
 const loading = ref(true)
@@ -55,7 +54,7 @@ useHead({ title: 'Favourites' })
           <Heart class="h-5 w-5 text-lavender-200" />
         </div>
         <div>
-          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Favourites</h1>
+          <h1 class="font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">Favourites</h1>
           <p class="mt-0.5 text-sm text-cream-dim">A quiet personal shelf</p>
         </div>
       </div>
@@ -82,6 +81,7 @@ useHead({ title: 'Favourites' })
 
     <EmptyState
       v-else-if="tracks.length === 0"
+      icon="heart"
       title="Nothing here yet"
       description="Tap the little heart on any song to keep it close. It will wait for you here."
     />

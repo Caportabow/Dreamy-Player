@@ -79,7 +79,7 @@ function toggle(): void {
     <button
       v-if="result.previewUrl"
       type="button"
-      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-white/10 hover:text-cream"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-white/10 hover:text-cream"
       :class="{ 'bg-lavender-200 text-night-950 shadow-glow': isPreviewing }"
       :aria-label="isPreviewing ? 'Stop preview' : `Preview ${result.title}`"
       :title="isPreviewing ? 'Stop preview' : 'Listen to a 30-second preview'"
@@ -92,7 +92,7 @@ function toggle(): void {
     <button
       v-if="add"
       type="button"
-      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-lavender-200 hover:text-night-950 hover:shadow-glow disabled:opacity-50"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-lavender-200 hover:text-night-950 hover:shadow-glow disabled:opacity-50"
       :aria-label="`Add ${result.title} to the library`"
       :title="'Add to library'"
       :disabled="busy"
@@ -103,7 +103,7 @@ function toggle(): void {
 
     <span
       v-else
-      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-cream-muted transition-all duration-300"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-cream-muted transition-all duration-300"
       :class="
         selected
           ? 'bg-lavender-200 text-night-950 shadow-glow'

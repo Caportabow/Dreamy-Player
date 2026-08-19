@@ -274,7 +274,7 @@ useHead({ title: 'Profile' })
           </template>
           <template v-else>
             <div class="flex items-center justify-center gap-1.5 sm:justify-start">
-              <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">
+              <h1 class="font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">
                 {{ auth.displayName }}
               </h1>
               <button
@@ -287,7 +287,7 @@ useHead({ title: 'Profile' })
               </button>
             </div>
             <div class="mt-0.5 text-sm text-cream-dim">
-            <p class="flex items-center justify-center gap-1.5 sm:justify-start">
+              <p class="flex items-center justify-center gap-1.5 sm:justify-start">
               <template v-if="editingUsername">
                 <span class="text-cream-faint">@</span>
                 <Input
@@ -324,18 +324,18 @@ useHead({ title: 'Profile' })
                 </button>
               </template>
             </p>
-            <p
-              v-if="editingUsername && (usernameStatus === 'checking' || usernameStatus === 'valid' || usernameStatus === 'taken' || usernameStatus === 'invalid')"
-              class="mt-1 text-xs"
-              :class="{
-                'text-cream-faint': usernameStatus === 'checking',
-                'text-lavender-300': usernameStatus === 'valid',
-                'text-rose-300/90': usernameStatus === 'taken' || usernameStatus === 'invalid',
-              }"
-              aria-live="polite"
-            >
-              {{ usernameMessage }}
-            </p>
+              <p
+                v-if="editingUsername && (usernameStatus === 'checking' || usernameStatus === 'valid' || usernameStatus === 'taken' || usernameStatus === 'invalid')"
+                class="mt-1 text-xs"
+                :class="{
+                  'text-cream-faint': usernameStatus === 'checking',
+                  'text-lavender-300': usernameStatus === 'valid',
+                  'text-rose-300/90': usernameStatus === 'taken' || usernameStatus === 'invalid',
+                }"
+                aria-live="polite"
+              >
+                {{ usernameMessage }}
+              </p>
             </div>
           </template>
 

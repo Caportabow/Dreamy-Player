@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { BarChart3, Heart, History, Music } from 'lucide-vue-next'
+import { BarChart3, Heart, History, Library, ListMusic, Music } from 'lucide-vue-next'
 
 withDefaults(
   defineProps<{
     title: string
     description?: string
-    icon?: 'logo' | 'music' | 'heart' | 'history' | 'chart'
+    icon?: 'logo' | 'music' | 'heart' | 'history' | 'chart' | 'playlist' | 'library'
   }>(),
   { icon: 'logo' },
 )
@@ -21,6 +21,8 @@ withDefaults(
       <Heart v-else-if="icon === 'heart'" class="h-8 w-8 text-lavender-300" stroke-width="1.5" />
       <History v-else-if="icon === 'history'" class="h-8 w-8 text-lavender-300" stroke-width="1.5" />
       <BarChart3 v-else-if="icon === 'chart'" class="h-8 w-8 text-lavender-300" stroke-width="1.5" />
+      <ListMusic v-else-if="icon === 'playlist'" class="h-8 w-8 text-lavender-300" stroke-width="1.5" />
+      <Library v-else-if="icon === 'library'" class="h-8 w-8 text-lavender-300" stroke-width="1.5" />
     </div>
     <h2 class="font-display text-lg font-semibold text-cream">{{ title }}</h2>
     <p v-if="description" class="mt-2 max-w-sm text-sm leading-relaxed text-cream-dim">

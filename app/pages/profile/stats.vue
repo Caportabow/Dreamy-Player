@@ -5,7 +5,6 @@ import { usePlayerStore } from '~/stores/player'
 import { formatListenTime } from '~/composables/useTimeFormat'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
-
 const player = usePlayerStore()
 const toast = useToast()
 const stats = ref<StatsData | null>(null)
@@ -46,7 +45,7 @@ function playTop(entry: { track: Track }): void {
         <BarChart3 class="h-5 w-5 text-lavender-200" />
       </div>
       <div class="min-w-0">
-        <h1 class="truncate font-display text-2xl font-semibold text-cream sm:text-3xl">Statistics</h1>
+        <h1 class="truncate font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">Statistics</h1>
         <p class="mt-0.5 truncate text-sm text-cream-dim">Your quiet listening story</p>
       </div>
     </header>
@@ -57,6 +56,7 @@ function playTop(entry: { track: Track }): void {
 
     <EmptyState
       v-else-if="stats && stats.totalPlays === 0"
+      icon="chart"
       title="Your story hasn't begun"
       description="Listen to a few songs, and your quiet listening story will begin to appear here."
     />
@@ -91,12 +91,12 @@ function playTop(entry: { track: Track }): void {
               :key="entry.track.id"
               role="button"
               tabindex="0"
-              class="flex cursor-pointer items-center gap-3 rounded-pillow-sm px-2 py-2 text-left transition-colors hover:bg-white/5"
+              class="flex cursor-pointer items-center gap-3 rounded-pillow-sm px-2.5 py-2 text-left transition-colors hover:bg-white/5"
               @click="playTop(entry)"
               @keydown.enter="playTop(entry)"
             >
               <span class="w-5 shrink-0 text-center text-xs tabular-nums text-cream-faint">{{ i + 1 }}</span>
-              <div class="h-10 w-10 shrink-0 overflow-hidden rounded-pillow-sm">
+              <div class="h-11 w-11 shrink-0 overflow-hidden rounded-pillow-sm">
                 <TrackArtwork :artwork-key="entry.track.artworkKey" :title="entry.track.title" />
               </div>
               <div class="min-w-0 flex-1">
@@ -120,10 +120,10 @@ function playTop(entry: { track: Track }): void {
             <div
               v-for="(entry, i) in stats.topArtists"
               :key="entry.artist"
-              class="flex items-center gap-3 rounded-pillow-sm px-2 py-2"
+              class="flex items-center gap-3 rounded-pillow-sm px-2.5 py-2"
             >
               <span class="w-5 shrink-0 text-center text-xs tabular-nums text-cream-faint">{{ i + 1 }}</span>
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-pillow-sm bg-gradient-to-br from-plum-700/50 to-violet-700/30 text-sm font-semibold text-lavender-200">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-pillow-sm bg-gradient-to-br from-plum-700/50 to-violet-700/30 text-sm font-semibold text-lavender-200">
                 {{ entry.artist.slice(0, 1).toUpperCase() }}
               </div>
               <div class="min-w-0 flex-1">

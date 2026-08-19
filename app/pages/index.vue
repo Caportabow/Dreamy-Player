@@ -183,7 +183,7 @@ useHead({ title: 'Library' })
           <component :is="mode === 'library' ? LibraryIcon : Plus" class="h-5 w-5 text-lavender-200" />
         </div>
         <div>
-          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">{{ pageTitle }}</h1>
+          <h1 class="font-display text-2xl font-semibold text-cream text-glow sm:text-3xl">{{ pageTitle }}</h1>
           <p class="mt-1 text-sm text-cream-dim">{{ pageSubtitle }}</p>
         </div>
       </div>
@@ -299,14 +299,11 @@ useHead({ title: 'Library' })
       <!-- Add songs mode: search the catalog, preview, add -->
       <div v-if="mode === 'add'" key="add">
         <template v-if="!searchInput.trim()">
-          <div
-            class="flex flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-16 text-center"
-          >
-            <Equalizer class="h-8" />
-            <p class="text-sm text-cream-dim">
-              Type above to search for new songs — preview them and add them in one tap.
-            </p>
-          </div>
+          <EmptyState
+            icon="music"
+            title="Search to add songs"
+            description="Type above to find new songs — preview them and add them in one tap."
+          />
         </template>
         <template v-else>
           <div
@@ -387,6 +384,7 @@ useHead({ title: 'Library' })
         <!-- error -->
         <EmptyState
           v-else-if="library.error && library.tracks.length === 0"
+          icon="library"
           title="The library is dozing off"
           description="We couldn't reach it just now. Give it a nudge and try again."
         >
@@ -396,6 +394,7 @@ useHead({ title: 'Library' })
         <!-- empty library -->
         <EmptyState
           v-else-if="library.tracks.length === 0 && !searchInput.trim()"
+          icon="library"
           title="A quiet room, so far"
           description="Search the internet for a song and add it to start your collection."
         >
