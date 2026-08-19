@@ -79,7 +79,7 @@ useHead({ title: 'Add Music' })
       </div>
       <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Add Music</h1>
       <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-cream-dim">
-        Search for a song, choose a result shorter than five minutes, and Dreamy will gently
+        Search for a song, choose a result shorter than ten minutes, and Dreamy will gently
         download it into the library.
       </p>
     </header>
@@ -108,7 +108,7 @@ useHead({ title: 'Add Music' })
         <h2 class="text-sm font-medium text-cream-muted">
           {{ downloads.results.length }} result{{ downloads.results.length === 1 ? '' : 's' }}
         </h2>
-        <p class="text-[11px] text-cream-faint">Results are limited to five minutes</p>
+        <p class="text-[11px] text-cream-faint">Results are limited to ten minutes</p>
       </div>
       <div class="flex flex-col gap-2.5">
         <SearchResultCard

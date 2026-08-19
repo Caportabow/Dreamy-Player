@@ -73,14 +73,14 @@ function mapVideo(raw: any): VideoInfo {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * Search YouTube and return only results with a known duration of 1–300s.
+ * Search YouTube and return only results with a known duration of 1–600s.
  *
  * Uses a flat search (`ytsearch10` with `--flat-playlist`): a single innertube
  * call that returns ~10 entries with authoritative durations straight from
  * YouTube's search response. This is dramatically faster and more stable than
  * deep-extracting every video, which repeatedly trips bot detection from
  * datacenter IPs. Only entries whose duration is missing are enriched with a
- * full metadata fetch, so the five-minute rule still holds without paying for
+ * full metadata fetch, so the ten-minute rule still holds without paying for
  * per-video re-extraction in the common case.
  */
 export async function search(query: string, maxDuration: number): Promise<VideoInfo[]> {
@@ -183,7 +183,7 @@ export async function fetchMetadata(url: string, maxDuration: number): Promise<F
   const cached = metaCache.get(url)
   if (cached && Date.now() - cached.at < META_CACHE_TTL_MS) {
     if (cached.meta.duration !== null && cached.meta.duration > maxDuration) {
-      throw new YtError('This video is longer than five minutes.', 'too_long')
+      throw new YtError('This video is longer than ten minutes.', 'too_long')
     }
     return cached.meta
   }
@@ -211,12 +211,12 @@ export async function fetchMetadata(url: string, maxDuration: number): Promise<F
     ? Math.round(raw.duration)
     : null
 
-  // The five-minute rule is enforced here, immediately before downloading.
+  // The ten-minute rule is enforced here, immediately before downloading.
   if (duration === null || duration <= 0) {
     throw new YtError('The video duration could not be determined.', 'unknown_duration')
   }
   if (duration > maxDuration) {
-    throw new YtError('This video is longer than five minutes.', 'too_long')
+    throw new YtError('This video is longer than ten minutes.', 'too_long')
   }
 
   const meta = { ...mapVideo(raw), duration, raw }

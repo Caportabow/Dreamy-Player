@@ -5,7 +5,7 @@ import { downloadJobs, tracks, userTracks } from '../../../../db/schema'
 import { requireServiceAuth } from '../../../../utils/service-auth'
 import { bucketForKey, removeObject } from '../../../../storage/minio'
 
-const MAX_DURATION = 300
+const MAX_DURATION = 600
 
 export default defineEventHandler(async (event) => {
   requireServiceAuth(event)
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   if (!Number.isInteger(duration) || duration < 1 || duration > MAX_DURATION) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Rejected track: duration is missing or longer than five minutes.',
+      statusMessage: 'Rejected track: duration is missing or longer than ten minutes.',
     })
   }
   if (!audioKey.startsWith('audio/')) {

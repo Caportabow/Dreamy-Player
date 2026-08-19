@@ -6,7 +6,7 @@ import { getCurrentUser } from '../utils/auth'
 import { env } from '../utils/env'
 import { serviceAuthHeaders } from '../utils/service-auth'
 
-const MAX_DURATION = 300
+const MAX_DURATION = 600
 
 export function extractYoutubeId(url: string): string | null {
   try {
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   if (!Number.isInteger(duration) || duration < 1 || duration > MAX_DURATION) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Only videos up to five minutes long can be added.',
+      statusMessage: 'Only videos up to ten minutes long can be added.',
     })
   }
 

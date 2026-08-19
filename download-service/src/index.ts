@@ -33,7 +33,7 @@ app.get('/health', (_req, res) => {
 const SEARCH_CACHE_TTL_MS = 3 * 60_000
 const searchCache = new Map<string, { at: number; results: EnrichedResult[] }>()
 
-/** Search YouTube in metadata-only mode; only ≤5min results are returned. */
+/** Search YouTube in metadata-only mode; only ≤10min results are returned. */
 app.post('/search', requireAuth, async (req, res) => {
   const query = typeof req.body?.query === 'string' ? req.body.query.trim().slice(0, 200) : ''
   if (!query) {
@@ -105,7 +105,7 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
   const { jobId, sourceUrl } = input
   let dir: string | null = null
   try {
-    // 1. Independently re-fetch and validate metadata (five-minute rule enforced here).
+    // 1. Independently re-fetch and validate metadata (ten-minute rule enforced here).
     //    When the video came from a search, this is served from the metadata cache.
     await reportProgress(jobId, { status: 'searching', stage: 'Re-checking the video…', progress: 5 })
     const meta = await fetchMetadata(sourceUrl, env.maxDuration)

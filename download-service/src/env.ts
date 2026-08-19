@@ -11,7 +11,7 @@ export const env = {
   serviceSecret: str(process.env.DOWNLOAD_SERVICE_SECRET, ''),
   /** Base URL of the Nuxt application (its internal job API). */
   nuxtUrl: str(process.env.DOWNLOAD_SERVICE_URL, 'http://localhost:3000').replace(/\/$/, ''),
-  maxDuration: 300,
+  maxDuration: 600,
   tempDir: str(process.env.WORKER_TMP_DIR, '/tmp/dreamy-downloads'),
   minio: {
     endpoint: str(process.env.MINIO_ENDPOINT, 'localhost'),

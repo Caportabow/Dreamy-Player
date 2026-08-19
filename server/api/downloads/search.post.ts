@@ -49,8 +49,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Enforce the five-minute rule server-side as well.
-  const filtered = results.filter((r) => Number.isInteger(r.duration) && r.duration >= 1 && r.duration <= 300)
+  // Enforce the ten-minute rule server-side as well.
+  const filtered = results.filter((r) => Number.isInteger(r.duration) && r.duration >= 1 && r.duration <= 600)
 
   return { results: filtered }
 })
