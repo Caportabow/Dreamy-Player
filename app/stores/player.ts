@@ -31,6 +31,11 @@ export const usePlayerStore = defineStore('player', () => {
   const audioError = ref<string | null>(null)
   const restoring = ref(true)
 
+  // True while the user is dragging the seek bar (or the element is between
+  // a seek request and its completion). While set, timeupdate must not
+  // overwrite the position the user chose.
+  const seeking = ref(false)
+
   // Play order of queue indices (shuffled or sequential).
   const order = ref<number[]>([])
 
@@ -194,7 +199,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   function wireEvents(audio: HTMLAudioElement): void {
     audio.addEventListener('timeupdate', () => {
-      if (Number.isFinite(audio.currentTime)) position.value = audio.currentTime
+      if (!seeking.value && Number.isFinite(audio.currentTime)) position.value = audio.currentTime
       trackListening(audio)
     })
     audio.addEventListener('durationchange', () => {
@@ -224,7 +229,12 @@ export const usePlayerStore = defineStore('player', () => {
     audio.addEventListener('pause', () => {
       isPlaying.value = false
     })
+    audio.addEventListener('seeking', () => {
+      seeking.value = true
+    })
     audio.addEventListener('seeked', () => {
+      seeking.value = false
+      if (Number.isFinite(audio.currentTime)) position.value = audio.currentTime
       lastTime = audio.currentTime
     })
   }
@@ -386,8 +396,20 @@ export const usePlayerStore = defineStore('player', () => {
     if (!Number.isFinite(seconds)) return
     const max = audio.duration || duration.value || 0
     const target = Number.isFinite(max) ? Math.min(Math.max(seconds, 0), max) : Math.max(seconds, 0)
-    audio.currentTime = target
+
+    // A no-op seek (released the bar where it already was) never fires a
+    // seeked event — clear the flag ourselves so the clock keeps tracking.
+    if (Math.abs(audio.currentTime - target) < 0.1) {
+      seeking.value = false
+      position.value = target
+      return
+    }
+
+    // Pin the display immediately, then let the element catch up. The
+    // seeking/seeked events release the lock so timeupdate can resume.
+    seeking.value = true
     position.value = target
+    audio.currentTime = target
   }
 
   function next(auto = false): void {
@@ -706,6 +728,7 @@ export const usePlayerStore = defineStore('player', () => {
     isPlaying.value = false
     isExpanded.value = false
     audioError.value = null
+    seeking.value = false
     suppressPersist = false
     try {
       localStorage.removeItem(STORAGE_KEY)
@@ -727,6 +750,7 @@ export const usePlayerStore = defineStore('player', () => {
     isExpanded,
     audioError,
     restoring,
+    seeking,
     order,
     current,
     getAudioElement,

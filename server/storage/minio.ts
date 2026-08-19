@@ -63,6 +63,21 @@ export async function getObjectStream(bucket: string, key: string): Promise<Read
   }
 }
 
+/** Stream a byte range of an object — what HTTP Range requests map to. */
+export async function getObjectPartial(
+  bucket: string,
+  key: string,
+  start: number,
+  length: number,
+): Promise<Readable | null> {
+  try {
+    return (await minio.getPartialObject(bucket, key, start, length)) as Readable
+  } catch (err: any) {
+    if (err?.code === 'NoSuchKey' || err?.code === 'NotFound' || err?.code === 'InvalidRange') return null
+    throw err
+  }
+}
+
 export async function statObject(bucket: string, key: string) {
   try {
     return await minio.statObject(bucket, key)

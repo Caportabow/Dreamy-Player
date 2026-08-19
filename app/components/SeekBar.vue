@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePlayerStore } from '~/stores/player'
+
 const props = defineProps<{
   modelValue: number
   max: number
@@ -36,6 +38,9 @@ function positionFromEvent(e: PointerEvent): number {
 
 function onPointerDown(e: PointerEvent): void {
   dragging.value = true
+  // Freeze the displayed position while dragging: the audio keeps playing
+  // and its timeupdate (~4×/s) must not snap the thumb back.
+  usePlayerStore().seeking = true
   emit('update:modelValue', positionFromEvent(e))
   try {
     trackEl.value?.setPointerCapture(e.pointerId)
@@ -61,6 +66,14 @@ function onPointerUp(e: PointerEvent): void {
   dragging.value = false
   emit('seek', positionFromEvent(e))
 }
+
+function onPointerCancel(e: PointerEvent): void {
+  // The browser took the pointer over (e.g. a system gesture) — commit the
+  // dragged position rather than leaving the lock held.
+  if (!dragging.value) return
+  dragging.value = false
+  emit('seek', positionFromEvent(e))
+}
 </script>
 
 <template>
@@ -70,6 +83,7 @@ function onPointerUp(e: PointerEvent): void {
     @pointerdown.prevent="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
+    @pointercancel="onPointerCancel"
     @pointerenter="hover = true"
     @pointerleave="hover = false"
   >
@@ -84,7 +98,8 @@ function onPointerUp(e: PointerEvent): void {
 
     <div class="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10">
       <div
-        class="absolute inset-y-0 left-0 rounded-full bg-lavender-400/80 transition-[width] duration-100"
+        class="absolute inset-y-0 left-0 rounded-full bg-lavender-400/80"
+        :class="dragging ? 'transition-none' : 'transition-[width] duration-100'"
         :style="{ width: `${percent}%` }"
       />
       <div
