@@ -120,6 +120,8 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
       // skip malformed lines
     }
   }
+  // ytsearch10 yields at most 10 entries — that's the whole window.
+  const WINDOW = 10
 
   // Seed the metadata cache with the search response's own durations, so a
   // download of a picked result skips the separate re-validation fetch.
@@ -132,7 +134,7 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
   // Pre-filter: drop entries already known to exceed the limit.
   const candidates = shallow
     .filter((v) => v.duration === null || (v.duration >= 1 && v.duration <= maxDuration))
-    .slice(0, 8)
+    .slice(0, WINDOW)
 
   if (candidates.length === 0) return []
 
@@ -161,7 +163,7 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
         }
       }
     }
-    await Promise.all(Array.from({ length: Math.min(8, missing.length) }, worker))
+    await Promise.all(Array.from({ length: Math.min(WINDOW, missing.length) }, worker))
     const byUrl = new Map(enriched.map((e) => [e.url, e]))
     return candidates
       .map((c) => byUrl.get(c.url) ?? c)

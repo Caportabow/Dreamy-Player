@@ -5,6 +5,12 @@
  *  - resolves the real cover art (iTunes artwork),
  *  - finds a 30-second preview so the user can listen before downloading.
  *
+ * Variant uploads ("Song (slowed + reverb)", "Song (best part)", …) are handled
+ * specially: the variant tags are stripped to locate the original track on
+ * iTunes, the result keeps the tags in its name while adopting the original's
+ * artist/artwork, and it stays an independent track (itunesId null) so it never
+ * collapses with the original or with other variants.
+ *
  * Everything is best-effort: if iTunes fails, results are shown with their raw
  * YouTube metadata and thumbnails.
  */
@@ -34,7 +40,7 @@ export interface Enrichment {
   previewUrl: string | null
 }
 
-const ENRICH_LIMIT = 5
+const ENRICH_LIMIT = 10
 const ENRICH_TTL_MS = 30 * 60_000
 
 const enrichCache = new Map<string, { at: number; enrichment: Enrichment | null }>()
@@ -55,6 +61,59 @@ function cleanTitle(rawTitle: string): string {
     .replace(/\s*\([^)]*\)/g, ' ')
     .replace(new RegExp(`\\s+(${JUNK_MARKERS.source})\\s*$`, 'i'), ' ')
     .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Audio-treatment / excerpt markers that make an upload a *variant* of a song
+ * (slowed, sped up, reverb, "best part", …). Listed longest-first so combined
+ * forms like "slowed + reverb" win over their parts.
+ */
+const VARIANT_PATTERNS: Array<{ label: string; re: RegExp }> = [
+  // Combined forms first so they win over their parts.
+  { label: 'slowed + reverb', re: /\bslowed\s*(?:down\s*)?(?:&|and|\+)\s*reverb\b/i },
+  { label: 'slowed down', re: /\bslowed\s*down\b/i },
+  { label: 'slowed', re: /\bslowed\b/i },
+  { label: 'sped up', re: /\bsped\s*up\b/i },
+  { label: 'speed up', re: /\bspeed\s*up\b/i },
+  { label: 'reverb', re: /\breverb\b/i },
+  { label: 'best part', re: /\bbest\s*part\b/i },
+  { label: 'nightcore', re: /\bnightcore\b/i },
+  { label: 'bass boosted', re: /\bbass\s*boost(?:ed)?\b|\bbassboosted\b/i },
+  { label: '8d audio', re: /\b8d(?:\s*audio)?\b/i },
+  { label: 'phonk', re: /\bphonk\b/i },
+  { label: 'remix', re: /\bremix\b/i },
+  { label: 'extended', re: /\bextended\b/i },
+  { label: 'instrumental', re: /\binstrumental\b/i },
+  { label: 'acoustic', re: /\bacoustic\b/i },
+]
+
+/** Variant markers present in a raw video title, in a sensible display order. */
+function extractVariantTags(rawTitle: string): string[] {
+  const found: string[] = []
+  let rest = rawTitle
+  for (const { label, re } of VARIANT_PATTERNS) {
+    if (re.test(rest)) {
+      found.push(label)
+      rest = rest.replace(re, ' ')
+    }
+  }
+  return found
+}
+
+/** Remove the variant tags from a cleaned title, leaving just the song name. */
+function stripVariantTags(title: string, tags: string[]): string {
+  let out = title
+  for (const tag of tags) {
+    const entry = VARIANT_PATTERNS.find((p) => p.label === tag)
+    if (entry) out = out.replace(entry.re, ' ')
+  }
+  // Leftover connectors / decorative symbols trailing the song name are tag
+  // residue ("&", "+", "♥"), not part of the song.
+  return out
+    .replace(/[♥♪♫❤]+/g, ' ')
+    .replace(/\s*(?:&|\+|and)\s*$/i, '')
+    .replace(/[-\s]+/g, ' ')
     .trim()
 }
 
@@ -113,15 +172,48 @@ async function resolveEnrichment(
   if (cached !== null || enrichCache.has(video.url)) return cached
 
   const guess = raw ? guessFromRaw(raw, video) : guessArtistTitle(video)
-  const match: ItunesMatch | null = await searchMatch(guess.title, guess.artist)
+  const variantTags = extractVariantTags(video.title)
+
+  // A variant upload ("Song (slowed + reverb)", "Song (best part)", …) is
+  // matched against iTunes by its stripped song name, so the original's
+  // artist/cover apply while the tags stay in the result's name. The variant
+  // keeps itunesId null so it never collapses with the original song (or other
+  // variants) in dedupe — it's its own independent track, and the original's
+  // 30-second preview is not offered on edited versions.
+  let match: ItunesMatch | null = null
+  let isVariant = false
+  if (variantTags.length > 0) {
+    // Try the whole cleaned title with the tags stripped first — this is the
+    // only reliable query for reversed titles like "something in the way -
+    // nirvana (sped up)", which the "Artist - Title" parser would misread as
+    // song="nirvana". Fall back to the parsed guess when that misses.
+    const strippedRaw = stripVariantTags(cleanTitle(video.title), variantTags)
+    const strippedGuess = stripVariantTags(guess.title, variantTags)
+    const candidates = [...new Set([strippedRaw, strippedGuess])].filter((t) => t.length >= 2)
+    // Search title-only — the uploader channel is usually a random remix
+    // account, not the original artist.
+    for (const term of candidates) {
+      match = await searchMatch(term, null)
+      if (match) {
+        isVariant = true
+        break
+      }
+    }
+  }
+  if (!match) {
+    // Plain normalization. This also covers titles where the "tag" is
+    // literally the song name (e.g. Daniel Caesar's "Best Part").
+    match = await searchMatch(guess.title, guess.artist)
+  }
+
   const enrichment: Enrichment | null = match
     ? {
-        title: match.title,
+        title: isVariant ? `${match.title} (${variantTags.join(' + ')})` : match.title,
         artist: match.artist,
         album: match.album,
-        itunesId: match.trackId !== null ? String(match.trackId) : null,
+        itunesId: isVariant ? null : match.trackId !== null ? String(match.trackId) : null,
         artworkUrl: match.artworkUrl,
-        previewUrl: match.previewUrl,
+        previewUrl: isVariant ? null : match.previewUrl,
       }
     : null
 

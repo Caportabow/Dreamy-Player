@@ -3,13 +3,18 @@
  * results and downloads. One lookup yields the canonical title/artist, album,
  * cover art, a ~30s audio preview, and a stable track id (used to collapse
  * duplicate uploads of the same song). Best-effort: a miss must never block a
- * search or download. Apple allows roughly 20 calls/minute; we stay well below
- * that with a small stagger.
+ * search or download. Apple documents the Search API as "limited to
+ * approximately 20 calls per minute (subject to change)" and recommends
+ * caching; we stay safely below that with a 200ms burst stagger, a per-term
+ * cache, and a rolling 60-second window capped at 15 calls.
  */
 
 const ITUNES_BASE = 'https://itunes.apple.com/search'
 const SEARCH_TTL_MS = 12 * 60 * 60_000
 const MIN_INTERVAL_MS = 200
+/** Apple's ceiling is ~20/min; never exceed 15 in any 60s window. */
+const MAX_CALLS_PER_WINDOW = 15
+const WINDOW_MS = 60_000
 
 export interface ItunesMatch {
   /** Canonical track title, per the iTunes catalog. */
@@ -31,13 +36,25 @@ const cache = new Map<string, { at: number; match: ItunesMatch | null }>()
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 let lastRequestAt = 0
+const callTimestamps: number[] = []
 let queue: Promise<unknown> = Promise.resolve()
 
 function throttled<T>(fn: () => Promise<T>): Promise<T> {
   const run = async (): Promise<T> => {
+    const now = Date.now()
+    // Drop timestamps that have aged out of the window.
+    while (callTimestamps.length > 0 && now - callTimestamps[0]! >= WINDOW_MS) {
+      callTimestamps.shift()
+    }
+    // Budget exhausted for this minute — wait until the oldest call ages out
+    // (one slot frees up). Only reachable under sustained heavy use.
+    if (callTimestamps.length >= MAX_CALLS_PER_WINDOW) {
+      await sleep(WINDOW_MS - (now - callTimestamps[0]!) + 250)
+    }
     const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - lastRequestAt))
     if (wait > 0) await sleep(wait)
     lastRequestAt = Date.now()
+    callTimestamps.push(Date.now())
     return fn()
   }
   const next = queue.then(run, run)
