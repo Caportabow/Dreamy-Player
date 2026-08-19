@@ -86,7 +86,7 @@ useHead({ title: 'Library' })
       </div>
 
       <div class="flex items-center gap-2">
-        <div class="relative min-w-0 flex-1 sm:w-72">
+        <div class="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
           <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
           <Input
             id="library-search"
@@ -119,15 +119,14 @@ useHead({ title: 'Library' })
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
-              variant="subtle"
-              size="icon"
-              class="h-9 w-9 shrink-0 rounded-full text-cream-muted hover:text-cream"
+            <button
+              type="button"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-cream-faint transition-all duration-300 hover:bg-white/5 hover:text-cream"
               :aria-label="`Sort by ${currentSortLabel}`"
               :title="`Sort by ${currentSortLabel}`"
             >
               <ArrowDownUp class="h-4 w-4" />
-            </Button>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-44">
             <DropdownMenuLabel>Sort by</DropdownMenuLabel>

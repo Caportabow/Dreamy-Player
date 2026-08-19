@@ -59,21 +59,23 @@ useHead({ title: 'Favourites' })
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="relative min-w-0 flex-1 sm:w-64">
-          <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
-          <Input v-model="search" type="search" placeholder="Search favourites…" class="pl-10" />
-        </div>
-        <Button variant="secondary" size="sm" :disabled="tracks.length === 0" @click="playAll">
-          <Play class="h-4 w-4 fill-current" />
-          <span class="hidden sm:inline">Play all</span>
-        </Button>
-        <Button variant="secondary" size="sm" :disabled="tracks.length === 0" @click="shuffleAll">
-          <Shuffle class="h-4 w-4" />
-          <span class="hidden sm:inline">Shuffle</span>
-        </Button>
+      <div class="relative w-full sm:w-72 sm:flex-none">
+        <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
+        <Input v-model="search" type="search" placeholder="Search favourites…" class="pl-10" />
       </div>
     </header>
+
+    <!-- Play the whole shelf in one tap -->
+    <div v-if="tracks.length > 0" class="mb-4 flex items-center gap-2">
+      <button type="button" class="btn-ghost h-10" :disabled="tracks.length === 0" @click="playAll">
+        <Play class="h-4 w-4 fill-current" />
+        Play all
+      </button>
+      <button type="button" class="btn-ghost h-10" :disabled="tracks.length === 0" @click="shuffleAll">
+        <Shuffle class="h-4 w-4" />
+        Shuffle
+      </button>
+    </div>
 
     <div v-if="loading && tracks.length === 0" class="space-y-2">
       <Skeleton v-for="i in 6" :key="i" class="h-16" />
