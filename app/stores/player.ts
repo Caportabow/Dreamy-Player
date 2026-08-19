@@ -54,8 +54,141 @@ export const usePlayerStore = defineStore('player', () => {
       el = new Audio()
       el.preload = 'metadata'
       wireEvents(el)
+      // OS media controls must never take the audio element down with them.
+      try {
+        setupMediaSession()
+      } catch {
+        // media session unavailable on this platform — playback still works
+      }
     }
     return el
+  }
+
+  // ---- OS media controls (lock screen / notification shade / media keys) ----
+  // Mirror the web player into the Media Session API so iOS, Android, and
+  // desktop browsers show the song and offer the same controls.
+  let mediaSessionBound = false
+
+  function setupMediaSession(): void {
+    if (mediaSessionBound) return
+    mediaSessionBound = true
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+
+    const ms = navigator.mediaSession
+
+    function updateMetadata(): void {
+      const item = current.value
+      if (!item) {
+        ms.metadata = null
+        return
+      }
+      try {
+        const artwork: MediaImage[] = []
+        if (item.artworkKey) {
+          // Absolute URL — some platforms (notably iOS) reject relative artwork.
+          const url = new URL(mediaUrl(item.artworkKey), window.location.href).toString()
+          artwork.push({ src: url, sizes: '512x512' })
+        }
+        ms.metadata = new MediaMetadata({
+          title: item.title,
+          artist: item.artist,
+          album: item.album ?? '',
+          artwork,
+        })
+      } catch {
+        // MediaMetadata may be missing — transport controls still work.
+      }
+      updatePositionState(true)
+    }
+
+    function updatePlaybackState(): void {
+      ms.playbackState = isPlaying.value ? 'playing' : 'paused'
+    }
+
+    // Keep the lock-screen scrubber honest; ~1s cadence is plenty and avoids
+    // hammering the platform with every timeupdate (~4×/s). Pass force=true
+    // right after a seek so the scrubber follows the drag immediately.
+    let lastPositionUpdate = 0
+    function updatePositionState(force = false): void {
+      const item = current.value
+      if (!item) return
+      const dur = duration.value > 0 ? duration.value : item.duration
+      if (!(dur > 0)) return
+      const now = Date.now()
+      if (!force && now - lastPositionUpdate < 1000 && position.value > 0) return
+      lastPositionUpdate = now
+      try {
+        ms.setPositionState({
+          duration: dur,
+          position: Math.min(position.value, dur),
+          playbackRate: 1,
+        })
+      } catch {
+        // setPositionState unsupported (older Safari) — fine.
+      }
+    }
+
+    watch(current, () => {
+      updateMetadata()
+      updatePlaybackState()
+    })
+    watch(isPlaying, updatePlaybackState)
+    watch([position, duration], () => updatePositionState())
+
+    const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ['play', () => {
+        play()
+        // Platforms only enable the scrubber once they know playback started
+        // and have a fresh position — publish it right away.
+        updatePlaybackState()
+        updatePositionState(true)
+      }],
+      ['pause', () => {
+        pause()
+        updatePlaybackState()
+      }],
+      ['previoustrack', () => prev()],
+      ['nexttrack', () => next()],
+      ['seekto', (details) => {
+        const target = details.seekTime
+        if (typeof target !== 'number' || !Number.isFinite(target)) return
+        // While dragging, platforms send a burst of fastSeek events; use the
+        // element's fast seek when available for a smooth scrub.
+        const audio = getEl()
+        if (audio && details.fastSeek && typeof audio.fastSeek === 'function') {
+          try {
+            audio.fastSeek(target)
+            position.value = target
+            updatePositionState(true)
+            return
+          } catch {
+            // fall through to the regular seek
+          }
+        }
+        seek(target)
+        updatePositionState(true)
+      }],
+      ['seekbackward', (details) => {
+        seek(position.value - (details.seekOffset ?? 10))
+        updatePositionState(true)
+      }],
+      ['seekforward', (details) => {
+        seek(position.value + (details.seekOffset ?? 10))
+        updatePositionState(true)
+      }],
+    ]
+    for (const [action, handler] of handlers) {
+      try {
+        ms.setActionHandler(action, handler)
+      } catch {
+        // Action unsupported in this browser — skip it.
+      }
+    }
+
+    // The current track may already be set (restored session) by the time the
+    // audio element is created — publish it without waiting for a change.
+    updateMetadata()
+    updatePlaybackState()
   }
 
   function wireEvents(audio: HTMLAudioElement): void {
@@ -553,6 +686,9 @@ export const usePlayerStore = defineStore('player', () => {
       el.pause()
       el.removeAttribute('src')
       el.load()
+    }
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      navigator.mediaSession.metadata = null
     }
     session = null
     suppressPersist = true
