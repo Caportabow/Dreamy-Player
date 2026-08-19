@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDownUp, Search } from 'lucide-vue-next'
+import { ArrowDownUp, Search, X } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
@@ -76,6 +76,16 @@ function focusSearch(): void {
   document.getElementById('library-search')?.focus()
 }
 
+/** One click back to the library: clear the query, results, and filters. */
+function clearSearch(): void {
+  searchInput.value = ''
+  if (searchTimer) clearTimeout(searchTimer)
+  downloads.reset()
+  lastSearchQuery = ''
+  library.search = ''
+  void library.fetchTracks()
+}
+
 function changeSort(value: string): void {
   library.sort = value as 'added' | 'title' | 'artist'
   library.fetchTracks()
@@ -112,9 +122,19 @@ useHead({ title: 'Library' })
             v-model="searchInput"
             type="search"
             placeholder="Search songs, artists, albums…"
-            class="pl-10"
+            class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
             aria-label="Search songs to play or add"
           />
+          <button
+            v-if="searchInput"
+            type="button"
+            class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
+            aria-label="Clear search and return to the library"
+            title="Clear search"
+            @click="clearSearch"
+          >
+            <X class="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div class="relative">
