@@ -67,6 +67,8 @@ onMounted(() => {
   void library.fetchTracks()
 })
 
+useSlashFocus(() => document.getElementById('library-search'))
+
 useHead({ title: 'Library' })
 </script>
 

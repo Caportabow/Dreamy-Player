@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BadgeCheck, Download, Pause, Play, Plus } from 'lucide-vue-next'
+import { BadgeCheck, Check, Download, Pause, Play, Plus } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useTrackPreview } from '~/composables/useTrackPreview'
 import { usePlayerStore } from '~/stores/player'
@@ -11,8 +11,10 @@ const props = withDefaults(
     busy?: boolean
     /** Inline "Add to library" button instead of the select indicator. */
     add?: boolean
+    /** Briefly true right after this result was added to the library. */
+    added?: boolean
   }>(),
-  { selected: false, busy: false, add: false },
+  { selected: false, busy: false, add: false, added: false },
 )
 const emit = defineEmits<{ select: [result: SearchResult]; add: [result: SearchResult] }>()
 
@@ -92,13 +94,19 @@ function toggle(): void {
     <button
       v-if="add"
       type="button"
-      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-lavender-200 hover:text-night-950 hover:shadow-glow disabled:opacity-50"
-      :aria-label="`Add ${result.title} to the library`"
-      :title="'Add to library'"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 disabled:opacity-50"
+      :class="
+        added
+          ? 'bg-lavender-200 text-night-950 shadow-glow'
+          : 'bg-white/5 text-cream-muted hover:bg-lavender-200 hover:text-night-950 hover:shadow-glow'
+      "
+      :aria-label="added ? `Added ${result.title} to the library` : `Add ${result.title} to the library`"
+      :title="added ? 'Added' : 'Add to library'"
       :disabled="busy"
       @click.stop="emit('add', result)"
     >
-      <Download class="h-4 w-4" />
+      <Check v-if="added" class="h-4 w-4" />
+      <Download v-else class="h-4 w-4" />
     </button>
 
     <span

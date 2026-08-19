@@ -43,6 +43,7 @@ function shuffleAll(): void {
 }
 
 onMounted(fetchFavourites)
+useSlashFocus(() => document.getElementById('favourites-search'))
 useHead({ title: 'Favourites' })
 </script>
 
@@ -60,8 +61,7 @@ useHead({ title: 'Favourites' })
       </div>
 
       <div class="relative w-full sm:w-72 sm:flex-none">
-        <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
-        <Input v-model="search" type="search" placeholder="Search favourites…" class="pl-10" />
+        <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />          <Input id="favourites-search" v-model="search" type="search" placeholder="Search favourites…" class="pl-10" />
       </div>
     </header>
 

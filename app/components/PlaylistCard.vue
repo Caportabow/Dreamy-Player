@@ -8,6 +8,8 @@ const emit = defineEmits<{ deleted: [id: string]; renamed: [playlist: Playlist] 
 
 const toast = useToast()
 const editOpen = ref(false)
+const deleteOpen = ref(false)
+const deleting = ref(false)
 const name = ref(props.playlist.name)
 
 async function rename(): Promise<void> {
@@ -30,12 +32,16 @@ async function rename(): Promise<void> {
 }
 
 async function remove(): Promise<void> {
+  deleting.value = true
   try {
     await $fetch(`/api/playlists/${props.playlist.id}`, { method: 'DELETE' })
     emit('deleted', props.playlist.id)
     toast.success('Playlist deleted.')
+    deleteOpen.value = false
   } catch (err: any) {
     toast.error(err?.data?.message || 'Could not delete the playlist.')
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -73,7 +79,7 @@ async function remove(): Promise<void> {
           Rename
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem class="text-rose-200 focus:text-rose-100" @select="remove">
+        <DropdownMenuItem class="text-rose-200 focus:text-rose-100" @select="deleteOpen = true">
           <Trash2 class="h-4 w-4" />
           Delete playlist
         </DropdownMenuItem>
@@ -93,6 +99,27 @@ async function remove(): Promise<void> {
             <Button type="submit">Save</Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="deleteOpen">
+      <DialogContent class="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete this playlist?</DialogTitle>
+          <DialogDescription>
+            “{{ playlist.name }}” and its track order will be gone. The songs stay in your
+            library — only the shelf disappears.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="ghost" :disabled="deleting" @click="deleteOpen = false">
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" :disabled="deleting" @click="remove">
+            <Trash2 class="h-4 w-4" />
+            {{ deleting ? 'Deleting…' : 'Delete' }}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   </div>

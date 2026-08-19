@@ -12,6 +12,13 @@ const props = withDefaults(
 )
 
 const src = computed(() => mediaUrl(props.artworkKey))
+
+// Fade art in once it has actually loaded instead of popping in; the
+// gradient placeholder shows underneath meanwhile.
+const loaded = ref(false)
+watch(src, () => {
+  loaded.value = false
+})
 </script>
 
 <template>
@@ -23,7 +30,9 @@ const src = computed(() => mediaUrl(props.artworkKey))
       :src="src"
       :alt="title"
       loading="lazy"
-      class="h-full w-full object-cover"
+      class="h-full w-full object-cover transition-opacity duration-500"
+      :class="loaded ? 'opacity-100' : 'opacity-0'"
+      @load="loaded = true"
     />
     <div
       v-else

@@ -13,6 +13,24 @@ const addingId = ref<string | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let lastSearchQuery = ''
 
+// Results briefly flip to a ✓ so the tap feels answered even before the toast.
+const addedIds = ref(new Set<string>())
+const addedTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function markAdded(id: string): void {
+  addedIds.value = new Set(addedIds.value).add(id)
+  clearTimeout(addedTimers.get(id))
+  addedTimers.set(
+    id,
+    setTimeout(() => {
+      const next = new Set(addedIds.value)
+      next.delete(id)
+      addedIds.value = next
+      addedTimers.delete(id)
+    }, 2500),
+  )
+}
+
 /** Search the download service for songs that could be added to the library. */
 function runRemoteSearch(): void {
   const q = searchInput.value.trim()
@@ -53,6 +71,7 @@ async function addResult(result: SearchResult): Promise<void> {
     if (addedTrackId) {
       toast.success('This song was already saved — added to your library.')
     }
+    markAdded(result.id)
   } catch (err: any) {
     toast.error(apiErrorMessage(err, 'The download could not be started.'))
   } finally {
@@ -80,6 +99,8 @@ onMounted(() => {
     runRemoteSearch()
   }
 })
+
+useSlashFocus(() => document.getElementById('add-search'))
 
 useHead({ title: 'Add song' })
 </script>
@@ -178,6 +199,7 @@ useHead({ title: 'Add song' })
             :result="result"
             add
             :busy="addingId === result.id"
+            :added="addedIds.has(result.id)"
             @add="addResult"
           />
         </div>

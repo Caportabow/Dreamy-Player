@@ -15,6 +15,8 @@ const loading = ref(true)
 const saving = ref(false)
 const editOpen = ref(false)
 const addOpen = ref(false)
+const deleteOpen = ref(false)
+const deleting = ref(false)
 
 // drag state
 const dragIndex = ref<number | null>(null)
@@ -107,12 +109,15 @@ async function removeTrack(track: Track): Promise<void> {
 }
 
 async function deletePlaylist(): Promise<void> {
+  deleting.value = true
   try {
     await $fetch(`/api/playlists/${playlistId.value}`, { method: 'DELETE' })
     toast.success('Playlist deleted.')
     await navigateTo('/playlists')
   } catch (err: any) {
     toast.error(apiErrorMessage(err, 'Could not delete the playlist.'))
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -163,7 +168,7 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
               <Pencil class="h-4 w-4" />
               Edit
             </Button>
-            <Button variant="ghost" class="text-rose-200 hover:bg-rose-500/10" @click="deletePlaylist">
+            <Button variant="ghost" class="text-rose-200 hover:bg-rose-500/10" @click="deleteOpen = true">
               <Trash2 class="h-4 w-4" />
               Delete
             </Button>
@@ -242,6 +247,28 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
 
       <!-- edit dialog -->
       <PlaylistEditDialog v-model:open="editOpen" :playlist="playlist" @saved="load" />
+
+      <!-- delete confirmation -->
+      <Dialog v-model:open="deleteOpen">
+        <DialogContent class="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this playlist?</DialogTitle>
+            <DialogDescription>
+              “{{ playlist.name }}” and its track order will be gone. The songs stay in your
+              library — only the shelf disappears.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" :disabled="deleting" @click="deleteOpen = false">
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" :disabled="deleting" @click="deletePlaylist">
+              <Trash2 class="h-4 w-4" />
+              {{ deleting ? 'Deleting…' : 'Delete' }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <!-- add tracks dialog -->
       <PlaylistAddTracksDialog
