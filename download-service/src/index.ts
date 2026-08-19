@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { env } from './env'
-import { downloadAudio, fetchMetadata, search, YtError, type FullMetadata } from './yt'
+import { downloadAudio, fetchMetadata, MAX_SEARCH_PAGES, search, YtError, type FullMetadata } from './yt'
 import { toMp3, toWebpSquare } from './ffmpeg'
 import { ensureBuckets, uploadFile } from './storage'
 import { reportComplete, reportFailure, reportProgress } from './nuxt'
@@ -28,9 +28,9 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'dreamy-download-service' })
 })
 
-/** Short-lived search cache: repeat queries are served instantly. */
+/** Short-lived search cache: repeat queries (per page) are served instantly. */
 const SEARCH_CACHE_TTL_MS = 3 * 60_000
-const searchCache = new Map<string, { at: number; results: EnrichedResult[] }>()
+const searchCache = new Map<string, { at: number; results: EnrichedResult[]; hasMore: boolean }>()
 
 /** Search YouTube in metadata-only mode; only ≤10min results are returned. */
 app.post('/search', requireAuth, async (req, res) => {
@@ -39,23 +39,26 @@ app.post('/search', requireAuth, async (req, res) => {
     res.status(400).json({ error: 'missing_query' })
     return
   }
-  const cached = searchCache.get(query)
+  const page = Math.min(Math.max(Number(req.body?.page) || 1, 1), MAX_SEARCH_PAGES)
+  const cacheKey = `${query}::p${page}`
+  const cached = searchCache.get(cacheKey)
   if (cached && Date.now() - cached.at < SEARCH_CACHE_TTL_MS) {
-    res.json({ results: cached.results })
+    res.json({ results: cached.results, hasMore: cached.hasMore })
     return
   }
   try {
     // YouTube search first, then normalize with the iTunes catalog (which
     // also collapses duplicate uploads) and attach cover art + previews.
-    const results = await enrichResults(await search(query, env.maxDuration))
-    searchCache.set(query, { at: Date.now(), results })
-    if (searchCache.size > 200) {
+    const { videos, hasMore } = await search(query, env.maxDuration, page)
+    const results = await enrichResults(videos)
+    searchCache.set(cacheKey, { at: Date.now(), results, hasMore })
+    if (searchCache.size > 400) {
       const now = Date.now()
       for (const [key, value] of searchCache) {
         if (now - value.at > SEARCH_CACHE_TTL_MS) searchCache.delete(key)
       }
     }
-    res.json({ results })
+    res.json({ results, hasMore })
   } catch (err) {
     if (err instanceof YtError) {
       res.status(422).json({ error: err.code, message: err.message })

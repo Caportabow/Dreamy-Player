@@ -16,26 +16,32 @@ interface SearchResult {
   url: string
 }
 
+interface SearchPage {
+  results: SearchResult[]
+  hasMore?: boolean
+}
+
 export default defineEventHandler(async (event) => {
   await getCurrentUser(event)
 
-  const body = await readBody<{ query?: string }>(event)
+  const body = await readBody<{ query?: string; page?: number }>(event)
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 200) : ''
   if (!query) throw createError({ statusCode: 400, statusMessage: 'What would you like to search for?' })
+  const page = Math.min(Math.max(Number(body.page) || 1, 1), 20)
 
-  async function askWorker(): Promise<SearchResult[]> {
-    const res = await $fetch<{ results: SearchResult[] }>(`${env.downloadServiceUrl}/search`, {
+  async function askWorker(): Promise<SearchPage> {
+    const res = await $fetch<SearchPage>(`${env.downloadServiceUrl}/search`, {
       method: 'POST',
       headers: serviceAuthHeaders(),
-      body: { query },
+      body: { query, page },
       timeout: 60_000,
     })
-    return res.results ?? []
+    return { results: res.results ?? [], hasMore: res.hasMore }
   }
 
-  let results: SearchResult[] = []
+  let pageResult: SearchPage = { results: [] }
   try {
-    results = await askWorker()
+    pageResult = await askWorker()
   } catch (err: any) {
     // Surface the worker's real reason (no results, blocked, too long, …)
     // instead of a generic outage message that hides the cause.
@@ -50,7 +56,7 @@ export default defineEventHandler(async (event) => {
     // No real answer — likely a transient hiccup (YouTube, iTunes, or the
     // worker itself). Give it one more chance before telling the user.
     try {
-      results = await askWorker()
+      pageResult = await askWorker()
     } catch {
       throw createError({
         statusCode: 503,
@@ -60,7 +66,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // Enforce the ten-minute rule server-side as well.
-  const filtered = results.filter((r) => Number.isInteger(r.duration) && r.duration >= 1 && r.duration <= 600)
+  const filtered = pageResult.results.filter(
+    (r) => Number.isInteger(r.duration) && r.duration >= 1 && r.duration <= 600,
+  )
 
-  return { results: filtered }
+  return { results: filtered, hasMore: pageResult.hasMore ?? false }
 })

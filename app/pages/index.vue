@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDownUp, Check, Search, X } from 'lucide-vue-next'
+import { ArrowDownUp, Check, Loader2, Search, X } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
@@ -67,6 +67,10 @@ function retrySearch(): void {
   const q = searchInput.value.trim()
   if (!q || downloads.searching) return
   void downloads.search(q)
+}
+
+function loadMoreResults(): void {
+  void downloads.loadMore()
 }
 
 /** One query, two lenses — the box feeds whichever mode is active. */
@@ -336,6 +340,18 @@ useHead({ title: 'Library' })
                 :busy="addingId === result.id"
                 @add="addResult"
               />
+            </div>
+
+            <div v-if="downloads.hasMore" class="mt-2 flex justify-center">
+              <Button
+                variant="secondary"
+                size="sm"
+                :disabled="downloads.loadingMore"
+                @click="loadMoreResults"
+              >
+                <Loader2 v-if="downloads.loadingMore" class="h-4 w-4 animate-spin" />
+                {{ downloads.loadingMore ? 'Loading more…' : 'Load more' }}
+              </Button>
             </div>
           </div>
 

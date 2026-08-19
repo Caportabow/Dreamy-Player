@@ -13,6 +13,9 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const searching = ref(false)
   const searchError = ref<string | null>(null)
   const results = ref<SearchResult[]>([])
+  /** Whether YouTube may have more results beyond the current page. */
+  const hasMore = ref(false)
+  const loadingMore = ref(false)
   const jobs = ref<DownloadJob[]>([])
   const loadingJobs = ref(false)
   const creating = ref(false)
@@ -29,6 +32,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
   // are ignored via a sequence counter, and stale requests are aborted.
   let searchSeq = 0
   let searchController: AbortController | null = null
+  let currentQuery = ''
+  let nextPage = 1
 
   const activeJobs = computed(() => jobs.value.filter((j) => ACTIVE_STATUSES.has(j.status)))
   const hasActiveJobs = computed(() => activeJobs.value.length > 0)
@@ -39,16 +44,21 @@ export const useDownloadsStore = defineStore('downloads', () => {
     searchController = new AbortController()
     searching.value = true
     searchError.value = null
+    hasMore.value = false
+    loadingMore.value = false
+    currentQuery = query
+    nextPage = 2
     // Drop stale results from a previous query while the new one is in flight.
     results.value = []
     try {
-      const res = await $fetch<{ results: SearchResult[] }>('/api/downloads/search', {
+      const res = await $fetch<{ results: SearchResult[]; hasMore?: boolean }>('/api/downloads/search', {
         method: 'POST',
-        body: { query },
+        body: { query, page: 1 },
         signal: searchController.signal,
       })
       if (seq !== searchSeq) return []
       results.value = res.results
+      hasMore.value = res.hasMore ?? false
       return res.results
     } catch (err: any) {
       if (seq !== searchSeq) return []
@@ -58,6 +68,37 @@ export const useDownloadsStore = defineStore('downloads', () => {
     } finally {
       if (seq === searchSeq) searching.value = false
     }
+  }
+
+  /** Fetch the next page of results for the current query and append them. */
+  async function loadMore(): Promise<void> {
+    if (loadingMore.value || searching.value || !hasMore.value || !currentQuery) return
+    const seq = searchSeq
+    const page = nextPage
+    loadingMore.value = true
+    try {
+      const res = await $fetch<{ results: SearchResult[]; hasMore?: boolean }>('/api/downloads/search', {
+        method: 'POST',
+        body: { query: currentQuery, page },
+      })
+      // A new search (or query change) supersedes this page — discard it.
+      if (seq !== searchSeq) return
+      appendUnique(res.results)
+      hasMore.value = res.hasMore ?? false
+      nextPage = page + 1
+    } catch {
+      // Leave hasMore true so the user can simply try again.
+    } finally {
+      if (seq === searchSeq) loadingMore.value = false
+    }
+  }
+
+  /** Append a page, skipping songs already on screen (same song, other uploads). */
+  function appendUnique(next: SearchResult[]): void {
+    const key = (r: SearchResult): string =>
+      r.itunesId ?? `${r.artist.toLowerCase()}||${r.title.toLowerCase()}`
+    const seen = new Set(results.value.map(key))
+    results.value = [...results.value, ...next.filter((r) => !seen.has(key(r)))]
   }
 
   async function createJob(selection: {
@@ -157,12 +198,18 @@ export const useDownloadsStore = defineStore('downloads', () => {
   function reset(): void {
     results.value = []
     searchError.value = null
+    hasMore.value = false
+    loadingMore.value = false
+    currentQuery = ''
+    nextPage = 1
   }
 
   return {
     searching,
     searchError,
     results,
+    hasMore,
+    loadingMore,
     jobs,
     loadingJobs,
     creating,
@@ -170,6 +217,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
     activeJobs,
     hasActiveJobs,
     search,
+    loadMore,
     createJob,
     fetchJobs,
     ensurePolling,

@@ -75,22 +75,48 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /**
  * Search YouTube and return only results with a known duration of 1–600s.
  *
- * Uses a flat search (`ytsearch10` with `--flat-playlist`): a single innertube
- * call that returns ~10 entries with authoritative durations straight from
+ * Uses a flat search (`ytsearchN` with `--flat-playlist`): a single innertube
+ * call that returns entries with authoritative durations straight from
  * YouTube's search response. This is dramatically faster and more stable than
  * deep-extracting every video, which repeatedly trips bot detection from
  * datacenter IPs. Only entries whose duration is missing are enriched with a
  * full metadata fetch, so the ten-minute rule still holds without paying for
  * per-video re-extraction in the common case.
+ *
+ * Pagination: `page` slices the search results (10 per page) via
+ * `--playlist-start/--playlist-end`. `hasMore` reports whether the raw page
+ * was full, i.e. there may be further results — but never beyond
+ * MAX_SEARCH_PAGES, so a popular query can't turn into an endless list (and
+ * YouTube's search continuation gets unstable/slow the deeper you go).
  */
-export async function search(query: string, maxDuration: number): Promise<VideoInfo[]> {
+export const MAX_SEARCH_PAGES = 3
+
+export async function search(
+  query: string,
+  maxDuration: number,
+  page = 1,
+): Promise<{ videos: VideoInfo[]; hasMore: boolean }> {
+  const WINDOW = 10
+  const start = (page - 1) * WINDOW + 1
+  const end = page * WINDOW
+
   let stdout = ''
   let lastErr: any = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await run(
-        ['--flat-playlist', '--no-playlist', '--skip-download', '--dump-json', `ytsearch10:${query}`],
-        30_000,
+        [
+          '--flat-playlist',
+          '--no-playlist',
+          '--skip-download',
+          '--dump-json',
+          `ytsearch${end}:${query}`,
+          '--playlist-start',
+          String(start),
+          '--playlist-end',
+          String(end),
+        ],
+        45_000,
       )
       stdout = res.stdout
       break
@@ -120,8 +146,8 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
       // skip malformed lines
     }
   }
-  // ytsearch10 yields at most 10 entries — that's the whole window.
-  const WINDOW = 10
+  // A full page suggests there is more beyond it — up to the page cap.
+  const hasMore = shallow.length >= WINDOW && page < MAX_SEARCH_PAGES
 
   // Seed the metadata cache with the search response's own durations, so a
   // download of a picked result skips the separate re-validation fetch.
@@ -136,7 +162,7 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
     .filter((v) => v.duration === null || (v.duration >= 1 && v.duration <= maxDuration))
     .slice(0, WINDOW)
 
-  if (candidates.length === 0) return []
+  if (candidates.length === 0) return { videos: [], hasMore }
 
   // Only videos with an unknown duration need a full metadata fetch.
   const missing = candidates.filter((c) => c.duration === null)
@@ -165,12 +191,18 @@ export async function search(query: string, maxDuration: number): Promise<VideoI
     }
     await Promise.all(Array.from({ length: Math.min(WINDOW, missing.length) }, worker))
     const byUrl = new Map(enriched.map((e) => [e.url, e]))
-    return candidates
-      .map((c) => byUrl.get(c.url) ?? c)
-      .filter((v) => v.duration !== null && v.duration >= 1 && v.duration <= maxDuration)
+    return {
+      videos: candidates
+        .map((c) => byUrl.get(c.url) ?? c)
+        .filter((v) => v.duration !== null && v.duration >= 1 && v.duration <= maxDuration),
+      hasMore,
+    }
   }
 
-  return candidates.filter((v) => v.duration !== null && v.duration >= 1 && v.duration <= maxDuration)
+  return {
+    videos: candidates.filter((v) => v.duration !== null && v.duration >= 1 && v.duration <= maxDuration),
+    hasMore,
+  }
 }
 
 // Reusable metadata, keyed by watch URL, so repeat searches and the
