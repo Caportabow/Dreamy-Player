@@ -164,18 +164,6 @@ function setOrder(value: 'asc' | 'desc'): void {
   library.fetchTracks()
 }
 
-function playAll(): void {
-  if (library.tracks.length > 0) player.playTrackList(library.sortedTracks, 0)
-}
-
-function shuffleAll(): void {
-  const tracks = library.sortedTracks
-  if (tracks.length === 0) return
-  // Smart shuffle: interleaves the two halves of the sorted list, so the
-  // queue stays spread across the active sort direction (newer↔older, A↔Z)
-  // instead of random clumps.
-  player.playTrackList(smartShuffle(tracks), 0)
-}
 
 // Job polling lives in app.vue now — this page only loads the library.
 onMounted(() => {
@@ -199,11 +187,13 @@ useHead({ title: 'Library' })
           :model-value="mode"
           :items="viewModes"
           label="Library view"
-          class="shrink-0"
+          class="order-1 shrink-0"
           @update:model-value="switchMode"
         />
 
-        <div class="relative min-w-0 flex-1 sm:w-72">
+        <!-- On mobile the search takes its own full-width row (order 3); on
+             sm+ it slots back inline between the tabs and the sort button. -->
+        <div class="relative order-3 w-full min-w-0 sm:order-2 sm:w-72 sm:flex-1">
           <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
           <Input
             id="library-search"
@@ -244,7 +234,7 @@ useHead({ title: 'Library' })
           leave-from-class="w-9 opacity-100"
           leave-to-class="w-0 opacity-0"
         >
-          <div v-if="mode === 'library'" class="w-9 overflow-hidden">
+          <div v-if="mode === 'library'" class="order-2 w-9 overflow-hidden sm:order-3">
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button
@@ -375,18 +365,6 @@ useHead({ title: 'Library' })
 
       <!-- Library mode: filter the collection -->
       <div v-else key="library">
-        <!-- Play the whole filtered shelf in one tap -->
-        <div v-if="library.tracks.length > 0" class="mb-4 flex items-center gap-2">
-          <Button variant="secondary" size="sm" @click="playAll">
-            <Play class="h-4 w-4 fill-current" />
-            <span class="hidden sm:inline">Play all</span>
-          </Button>
-          <Button variant="secondary" size="sm" @click="shuffleAll">
-            <Shuffle class="h-4 w-4" />
-            <span class="hidden sm:inline">Shuffle</span>
-          </Button>
-        </div>
-
         <!-- loading skeleton -->
         <div
           v-if="library.loading && library.tracks.length === 0"

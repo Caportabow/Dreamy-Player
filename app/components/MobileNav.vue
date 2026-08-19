@@ -26,10 +26,19 @@ function isActive(to: string): boolean {
         v-for="item in items"
         :key="item.to"
         :to="item.to"
-        class="flex flex-col items-center gap-1 py-2.5 text-[10px] transition-colors"
-        :class="isActive(item.to) ? 'text-lavender-200' : 'text-cream-faint'"
+        class="flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors"
+        :class="isActive(item.to) ? 'text-lavender-200' : 'text-cream-faint hover:text-cream-muted'"
       >
-        <component :is="item.icon" class="h-5 w-5" />
+        <span
+          class="flex h-7 w-14 items-center justify-center rounded-full transition-all duration-300"
+          :class="
+            isActive(item.to)
+              ? 'bg-lavender-400/15 shadow-[0_0_18px_-4px_rgba(140,110,200,0.5)]'
+              : ''
+          "
+        >
+          <component :is="item.icon" class="h-5 w-5" />
+        </span>
         {{ item.label }}
       </NuxtLink>
     </div>

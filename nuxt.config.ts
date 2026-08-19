@@ -57,6 +57,9 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'apple-touch-icon', href: '/favicon.svg' },
+        // Quicksand display font: preloaded so headings snap in instead of swapping.
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/quicksand-latin.woff2', crossorigin: '' },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/quicksand-latin-ext.woff2', crossorigin: '' },
       ],
     },
   },

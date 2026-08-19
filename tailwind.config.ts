@@ -74,6 +74,7 @@ export default <Partial<Config>>{
           'sans-serif',
         ],
         display: [
+          '"Quicksand"',
           'ui-rounded',
           'SF Pro Rounded',
           'system-ui',
