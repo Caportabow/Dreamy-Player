@@ -107,10 +107,21 @@ export const useDownloadsStore = defineStore('downloads', () => {
     }
   }
 
+  // Track completions *since the store was loaded*. On the very first fetch
+  // (e.g. a page refresh) already-finished jobs are recorded silently, so the
+  // "Added to your library" flash only fires for downloads that actually
+  // completed while this session was watching.
+  let primed = false
+
   function detectCompletions(next: DownloadJob[]): void {
     const completedNow = new Set(
       next.filter((j) => j.status === 'complete').map((j) => j.id),
     )
+    if (!primed) {
+      primed = true
+      lastCompleteIds = completedNow
+      return
+    }
     const freshlyComplete = [...completedNow].filter((id) => !lastCompleteIds.has(id))
     if (freshlyComplete.length > 0) {
       library.touch()

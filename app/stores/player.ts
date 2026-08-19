@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { PlayerStatePayload, QueueItem, RepeatMode, Track } from '~/types/music'
 import { mediaUrl, toQueueItem } from '~/types/music'
+import { useTrackPreview } from '~/composables/useTrackPreview'
 import { useAuthStore } from './auth'
 
 const STORAGE_KEY = 'dreamy.player.v1'
@@ -217,6 +218,8 @@ export const usePlayerStore = defineStore('player', () => {
     audio.addEventListener('play', () => {
       isPlaying.value = true
       audioError.value = null
+      // A playing song takes over — never overlap with a search preview.
+      useTrackPreview().stopPreview()
     })
     audio.addEventListener('pause', () => {
       isPlaying.value = false

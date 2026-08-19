@@ -2,6 +2,7 @@
 import { BadgeCheck, Download, Pause, Play, Plus } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useTrackPreview } from '~/composables/useTrackPreview'
+import { usePlayerStore } from '~/stores/player'
 
 const props = withDefaults(
   defineProps<{
@@ -16,6 +17,7 @@ const props = withDefaults(
 const emit = defineEmits<{ select: [result: SearchResult]; add: [result: SearchResult] }>()
 
 const { playingUrl, togglePreview } = useTrackPreview()
+const player = usePlayerStore()
 
 const isPreviewing = computed(
   () => props.result.previewUrl !== null && playingUrl.value === props.result.previewUrl,
@@ -26,7 +28,10 @@ function select(): void {
 }
 
 function toggle(): void {
-  if (props.result.previewUrl) void togglePreview(props.result.previewUrl)
+  if (!props.result.previewUrl) return
+  // Listening to a preview pauses whatever song is playing.
+  player.pause()
+  void togglePreview(props.result.previewUrl)
 }
 </script>
 
