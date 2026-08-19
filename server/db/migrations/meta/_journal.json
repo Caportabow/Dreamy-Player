@@ -43,6 +43,20 @@
       "when": 1787095590555,
       "tag": "0005_opposite_fenris",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787102556020,
+      "tag": "0006_drop_mbid",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787102579982,
+      "tag": "0007_add_itunes_id",
+      "breakpoints": true
     }
   ]
 }

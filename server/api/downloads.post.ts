@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     artist?: string
     duration?: number
     artworkUrl?: string
-    mbid?: string
+    itunesId?: string
   }>(event)
 
   const sourceUrl = typeof body.sourceUrl === 'string' ? body.sourceUrl.trim() : ''
@@ -54,10 +54,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const artworkUrl = typeof body.artworkUrl === 'string' ? body.artworkUrl.trim().slice(0, 1000) : ''
-  const mbid =
-    typeof body.mbid === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.mbid)
-      ? body.mbid.toLowerCase()
+  // Apple track ids are plain positive integers; anything else is ignored.
+  const itunesId =
+    typeof body.itunesId === 'string' && /^\d{1,15}$/.test(body.itunesId)
+      ? body.itunesId
       : null
 
   const sourceId = extractYoutubeId(sourceUrl)
@@ -65,10 +65,10 @@ export default defineEventHandler(async (event) => {
   if (sourceId) {
     existing = await db.query.tracks.findFirst({ where: eq(tracks.sourceId, sourceId) })
   }
-  // Same recording under a different YouTube upload — the catalog entry (and
-  // its stored file) is reused as-is, nothing is re-downloaded.
-  if (!existing && mbid) {
-    existing = await db.query.tracks.findFirst({ where: eq(tracks.mbid, mbid) })
+  // Same song under a different YouTube upload — the catalog entry (and its
+  // stored file) is reused as-is, nothing is re-downloaded.
+  if (!existing && itunesId) {
+    existing = await db.query.tracks.findFirst({ where: eq(tracks.itunesId, itunesId) })
   }
   if (existing) {
     // The song already lives in the shared catalog (someone else added it,

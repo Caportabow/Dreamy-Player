@@ -60,7 +60,7 @@ async function addResult(result: SearchResult): Promise<void> {
       artist: result.artist,
       duration: result.duration,
       artworkUrl: result.artworkUrl || result.thumbnail || '',
-      mbid: result.mbid,
+      itunesId: result.itunesId,
     })
     if (addedTrackId) {
       toast.success('This song was already saved — added to your library.')

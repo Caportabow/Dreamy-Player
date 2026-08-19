@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     title?: string
     artist?: string
     album?: string | null
-    mbid?: string | null
+    itunesId?: string | null
     duration?: number
     audioKey?: string
     artworkKey?: string | null
@@ -31,10 +31,10 @@ export default defineEventHandler(async (event) => {
   const title = typeof body.title === 'string' ? body.title.trim().slice(0, 300) : ''
   const artist = typeof body.artist === 'string' ? body.artist.trim().slice(0, 200) : ''
   const album = typeof body.album === 'string' && body.album.trim() ? body.album.trim().slice(0, 300) : null
-  const mbid =
-    typeof body.mbid === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.mbid)
-      ? body.mbid.toLowerCase()
+  // Apple track ids are plain positive integers; anything else is ignored.
+  const itunesId =
+    typeof body.itunesId === 'string' && /^\d{1,15}$/.test(body.itunesId)
+      ? body.itunesId
       : null
   const duration = Number(body.duration)
   const audioKey = typeof body.audioKey === 'string' ? body.audioKey : ''
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
 
   // If the same song was added while this job was running, reuse that catalog
   // entry — the song must never be stored twice. First by exact YouTube video,
-  // then by MusicBrainz recording id (same song, different upload).
+  // then by iTunes track id (same song, different upload).
   let trackId: string | null = null
   let existingAudioKey: string | null = null
   if (sourceId) {
@@ -68,8 +68,8 @@ export default defineEventHandler(async (event) => {
       existingAudioKey = existing.audioKey
     }
   }
-  if (!trackId && mbid) {
-    const existing = await db.query.tracks.findFirst({ where: eq(tracks.mbid, mbid) })
+  if (!trackId && itunesId) {
+    const existing = await db.query.tracks.findFirst({ where: eq(tracks.itunesId, itunesId) })
     if (existing) {
       trackId = existing.id
       existingAudioKey = existing.audioKey
@@ -90,7 +90,7 @@ export default defineEventHandler(async (event) => {
       title,
       artist,
       album,
-      mbid,
+      itunesId,
       duration,
       audioKey,
       artworkKey,

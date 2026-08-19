@@ -37,7 +37,7 @@ export async function reportComplete(
     title: string
     artist: string
     album: string | null
-    mbid: string | null
+    itunesId: string | null
     duration: number
     audioKey: string
     artworkKey: string | null

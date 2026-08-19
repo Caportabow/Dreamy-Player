@@ -20,8 +20,8 @@ export const tracks = pgTable(
     sourceUrl: text('source_url').notNull(),
     /** YouTube video id, used for duplicate detection. */
     sourceId: text('source_id'),
-    /** MusicBrainz recording id — lets us spot the same song under a different YouTube upload. */
-    mbid: text('mbid'),
+    /** Apple iTunes track id — lets us spot the same song under a different YouTube upload. */
+    itunesId: text('itunes_id'),
     addedBy: text('added_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -29,7 +29,7 @@ export const tracks = pgTable(
     index('tracks_title_idx').on(t.title),
     index('tracks_artist_idx').on(t.artist),
     index('tracks_created_at_idx').on(t.createdAt),
-    index('tracks_mbid_idx').on(t.mbid),
+    index('tracks_itunes_id_idx').on(t.itunesId),
     uniqueIndex('tracks_source_id_unique').on(t.sourceId),
   ],
 )

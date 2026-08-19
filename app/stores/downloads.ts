@@ -66,7 +66,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
     artist: string
     duration: number
     artworkUrl: string
-    mbid: string | null
+    itunesId: string | null
   }): Promise<{ job: DownloadJob | null; addedTrackId: string | null }> {
     creating.value = true
     try {

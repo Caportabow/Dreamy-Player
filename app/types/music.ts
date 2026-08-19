@@ -8,8 +8,8 @@ export interface Track {
   artworkKey: string | null
   sourceUrl: string
   sourceId: string | null
-  /** MusicBrainz recording id, when the song was matched at download time. */
-  mbid: string | null
+  /** Apple iTunes track id, when the song was matched at download time. */
+  itunesId: string | null
   addedBy: string | null
   createdAt: string
   favourite?: boolean
@@ -92,18 +92,18 @@ export interface SearchResult {
   id: string
   title: string
   artist: string
-  /** Normalized album from MusicBrainz, when a match was found. */
+  /** Normalized album from iTunes, when a match was found. */
   album: string | null
   duration: number
   /** YouTube thumbnail. */
   thumbnail: string | null
-  /** Real cover art (Cover Art Archive), when one was found. */
+  /** Real cover art (iTunes), when one was found. */
   artworkUrl: string | null
   /** Short (~30s) Apple iTunes preview; null when none was found. */
   previewUrl: string | null
-  /** MusicBrainz recording id — present when the song was matched. */
-  mbid: string | null
-  /** True when title/artist were normalized via MusicBrainz. */
+  /** Apple track id — present when the song was matched. */
+  itunesId: string | null
+  /** True when title/artist were normalized via iTunes. */
   matched: boolean
   url: string
 }

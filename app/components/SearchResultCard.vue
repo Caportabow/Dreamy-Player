@@ -63,8 +63,8 @@ function toggle(): void {
         <BadgeCheck
           v-if="result.matched"
           class="h-4 w-4 shrink-0 text-lavender-200"
-          :aria-label="'Name matched on MusicBrainz'"
-          title="Name matched on MusicBrainz"
+          :aria-label="'Name matched on iTunes'"
+          title="Name matched on iTunes"
         />
       </h3>
       <p class="mt-0.5 truncate text-xs text-cream-dim">

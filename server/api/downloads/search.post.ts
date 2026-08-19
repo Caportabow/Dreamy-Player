@@ -11,7 +11,7 @@ interface SearchResult {
   thumbnail: string | null
   artworkUrl: string | null
   previewUrl: string | null
-  mbid: string | null
+  itunesId: string | null
   matched: boolean
   url: string
 }
@@ -47,8 +47,8 @@ export default defineEventHandler(async (event) => {
         statusMessage: message,
       })
     }
-    // No real answer — likely a transient hiccup (YouTube, MusicBrainz, or
-    // the worker itself). Give it one more chance before telling the user.
+    // No real answer — likely a transient hiccup (YouTube, iTunes, or the
+    // worker itself). Give it one more chance before telling the user.
     try {
       results = await askWorker()
     } catch {

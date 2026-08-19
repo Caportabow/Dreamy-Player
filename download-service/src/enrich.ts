@@ -1,29 +1,27 @@
 /**
  * Search-result enrichment: takes the raw YouTube results and, for the top few,
- *  - normalizes title/artist via MusicBrainz (also used to collapse duplicate
- *    uploads of the same recording in the results list),
- *  - resolves the real cover art from the Cover Art Archive (shown in the
- *    result cards and reused as the download artwork), and
- *  - finds an iTunes preview so the user can listen before downloading.
+ *  - normalizes title/artist against the iTunes catalog (also used to collapse
+ *    duplicate uploads of the same song in the results list),
+ *  - resolves the real cover art (iTunes artwork),
+ *  - finds a 30-second preview so the user can listen before downloading.
  *
- * Everything is best-effort: if an external service fails, results are shown
- * with their raw YouTube metadata and thumbnails.
+ * Everything is best-effort: if iTunes fails, results are shown with their raw
+ * YouTube metadata and thumbnails.
  */
 
-import { getCoverArtUrl, searchRecording, type RecordingMatch } from './musicbrainz'
-import { searchPreview } from './itunes'
+import { searchMatch, type ItunesMatch } from './itunes'
 import type { VideoInfo } from './yt'
 
 export interface EnrichedResult extends VideoInfo {
-  /** Normalized album (MusicBrainz), when a match was found. */
+  /** Normalized album (iTunes), when a match was found. */
   album: string | null
-  /** Real cover art (Cover Art Archive), when one was found. */
+  /** Real cover art (iTunes), when one was found. */
   artworkUrl: string | null
   /** Short preview (Apple iTunes), when one was found. */
   previewUrl: string | null
-  /** MusicBrainz recording id — stable key used to dedupe the results. */
-  mbid: string | null
-  /** Whether MusicBrainz had a match (title/artist are canonical when true). */
+  /** Apple track id — stable key used to dedupe the results. */
+  itunesId: string | null
+  /** Whether iTunes had a match (title/artist are canonical when true). */
   matched: boolean
 }
 
@@ -31,8 +29,9 @@ export interface Enrichment {
   title: string
   artist: string
   album: string | null
-  mbid: string | null
-  releaseIds: string[]
+  itunesId: string | null
+  artworkUrl: string | null
+  previewUrl: string | null
 }
 
 const ENRICH_LIMIT = 5
@@ -105,7 +104,7 @@ function guessFromRaw(
   return guessArtistTitle(video)
 }
 
-/** Cache-or-fresh MusicBrainz normalization for one video. */
+/** Cache-or-fresh iTunes normalization for one video. */
 async function resolveEnrichment(
   video: VideoInfo,
   raw?: any,
@@ -114,14 +113,15 @@ async function resolveEnrichment(
   if (cached !== null || enrichCache.has(video.url)) return cached
 
   const guess = raw ? guessFromRaw(raw, video) : guessArtistTitle(video)
-  const match: RecordingMatch | null = await searchRecording(guess.title, guess.artist)
+  const match: ItunesMatch | null = await searchMatch(guess.title, guess.artist)
   const enrichment: Enrichment | null = match
     ? {
         title: match.title,
         artist: match.artist,
         album: match.album,
-        mbid: match.recordingId || null,
-        releaseIds: match.releaseIds,
+        itunesId: match.trackId !== null ? String(match.trackId) : null,
+        artworkUrl: match.artworkUrl,
+        previewUrl: match.previewUrl,
       }
     : null
 
@@ -131,68 +131,36 @@ async function resolveEnrichment(
 }
 
 /**
- * Normalize the top results, resolve their real cover art, and attach
- * previews. MusicBrainz and Cover Art Archive each have their own 1 req/s
- * lane, so as soon as a recording is matched its cover lookup starts in
- * parallel; iTunes runs on its own faster lane alongside both.
+ * Normalize the top results, attach cover art and previews, and collapse
+ * duplicate uploads of the same song. A single serial lane is enough: iTunes
+ * is fast and lightly throttled (200ms stagger), and one lookup supplies the
+ * metadata, artwork, preview, and dedupe key at once.
  */
 export async function enrichResults(results: VideoInfo[]): Promise<EnrichedResult[]> {
   const candidates = results.slice(0, ENRICH_LIMIT)
   if (candidates.length === 0) return []
 
-  const normalizations = new Map<string, Enrichment | null>()
-  const covers = new Map<string, string | null>()
-  const previews = new Map<string, string | null>()
-
-  await Promise.all([
-    (async () => {
-      // Lane 1: MusicBrainz normalization (serial, 1 req/s), firing each
-      // cover lookup the moment its recording match arrives (Lane 2, CAA).
-      const coverJobs: Promise<void>[] = []
-      for (const video of candidates) {
-        const enrichment = await resolveEnrichment(video)
-        normalizations.set(video.url, enrichment)
-        if (enrichment && enrichment.releaseIds.length > 0) {
-          const url = video.url
-          coverJobs.push(
-            getCoverArtUrl(enrichment.releaseIds[0]!).then((coverUrl) => {
-              covers.set(url, coverUrl)
-            }),
-          )
-        }
-      }
-      await Promise.all(coverJobs)
-    })(),
-    (async () => {
-      // Lane 3: iTunes previews (own faster lane).
-      for (const video of candidates) {
-        const guess = guessArtistTitle(video)
-        const preview = await searchPreview(guess.title, guess.artist)
-        previews.set(video.url, preview?.previewUrl ?? null)
-      }
-    })(),
-  ])
-
-  const enriched: EnrichedResult[] = candidates.map((video) => {
-    const normalization = normalizations.get(video.url) ?? null
-    return {
+  const enriched: EnrichedResult[] = []
+  for (const video of candidates) {
+    const normalization = await resolveEnrichment(video)
+    enriched.push({
       ...video,
       title: normalization?.title || video.title,
       artist: normalization?.artist || video.artist,
       album: normalization?.album ?? null,
-      artworkUrl: covers.get(video.url) ?? null,
-      previewUrl: previews.get(video.url) ?? null,
-      mbid: normalization?.mbid ?? null,
+      artworkUrl: normalization?.artworkUrl ?? null,
+      previewUrl: normalization?.previewUrl ?? null,
+      itunesId: normalization?.itunesId ?? null,
       matched: normalization !== null,
-    }
-  })
+    })
+  }
 
-  // Collapse duplicate uploads of the same recording into a single result.
-  // MusicBrainz gives a stable key; fall back to normalized title + artist.
+  // Collapse duplicate uploads of the same song into a single result.
+  // iTunes gives a stable key; fall back to normalized title + artist.
   const seen = new Set<string>()
   const unique: EnrichedResult[] = []
   for (const result of enriched) {
-    const key = result.mbid ?? normalizeKey(result.artist, result.title)
+    const key = result.itunesId ?? normalizeKey(result.artist, result.title)
     if (seen.has(key)) continue
     seen.add(key)
     unique.push(result)
@@ -200,7 +168,7 @@ export async function enrichResults(results: VideoInfo[]): Promise<EnrichedResul
   return unique
 }
 
-/** Re-normalize a video at download time (cache or fresh MusicBrainz lookup). */
+/** Re-normalize a video at download time (cache or fresh iTunes lookup). */
 export async function resolveEnrichmentForDownload(
   video: VideoInfo,
   raw?: any,

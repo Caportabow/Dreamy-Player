@@ -9,7 +9,6 @@ import { downloadAudio, fetchMetadata, search, YtError, type FullMetadata } from
 import { toMp3, toWebpSquare } from './ffmpeg'
 import { ensureBuckets, uploadFile } from './storage'
 import { reportComplete, reportFailure, reportProgress } from './nuxt'
-import { resolveCoverArt } from './musicbrainz'
 import { enrichResults, getEnrichment, resolveEnrichmentForDownload, type EnrichedResult } from './enrich'
 
 const app = express()
@@ -46,8 +45,8 @@ app.post('/search', requireAuth, async (req, res) => {
     return
   }
   try {
-    // YouTube search first, then normalize with MusicBrainz (which also
-    // collapses duplicate uploads) and attach iTunes previews.
+    // YouTube search first, then normalize with the iTunes catalog (which
+    // also collapses duplicate uploads) and attach cover art + previews.
     const results = await enrichResults(await search(query, env.maxDuration))
     searchCache.set(query, { at: Date.now(), results })
     if (searchCache.size > 200) {
@@ -110,18 +109,15 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
     await reportProgress(jobId, { status: 'searching', stage: 'Re-checking the video…', progress: 5 })
     const meta = await fetchMetadata(sourceUrl, env.maxDuration)
 
-    // Normalize the name and artist with MusicBrainz — reuse the enrichment
-    // found during the search, or run a fresh lookup — and resolve the real
-    // cover from the Cover Art Archive. All best-effort.
+    // Normalize the name and artist with the iTunes catalog — reuse the
+    // enrichment found during the search, or run a fresh lookup. The real
+    // cover comes straight from iTunes too. All best-effort.
     const enrichment =
       getEnrichment(meta.url) ?? (await resolveEnrichmentForDownload(meta, meta.raw))
     const title = enrichment?.title || meta.title
     const artist = enrichment?.artist || meta.artist
     const album = enrichment?.album || null
-    const coverUrl =
-      enrichment && enrichment.releaseIds.length > 0
-        ? await resolveCoverArt(enrichment.releaseIds)
-        : null
+    const coverUrl = enrichment?.artworkUrl ?? null
 
     dir = await mkdtemp(path.join(env.tempDir, 'job-'))
 
@@ -151,7 +147,7 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
       title,
       artist,
       album,
-      mbid: enrichment?.mbid ?? null,
+      itunesId: enrichment?.itunesId ?? null,
       duration: meta.duration ?? 0,
       audioKey,
       artworkKey,
