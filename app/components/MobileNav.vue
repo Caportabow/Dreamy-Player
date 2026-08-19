@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, Heart, Library, ListMusic } from 'lucide-vue-next'
+import { Heart, Library, ListMusic } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -7,7 +7,6 @@ const items = [
   { label: 'Library', to: '/', icon: Library },
   { label: 'Favourites', to: '/favourites', icon: Heart },
   { label: 'Playlists', to: '/playlists', icon: ListMusic },
-  { label: 'Add', to: '/add', icon: Download },
 ]
 
 function isActive(to: string): boolean {
@@ -21,7 +20,7 @@ function isActive(to: string): boolean {
     class="fixed inset-x-0 bottom-0 z-30 border-t border-white/6 bg-night-900/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-2xl lg:hidden"
     aria-label="Bottom navigation"
   >
-    <div class="grid grid-cols-4">
+    <div class="grid grid-cols-3">
       <NuxtLink
         v-for="item in items"
         :key="item.to"

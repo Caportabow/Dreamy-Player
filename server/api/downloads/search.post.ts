@@ -23,15 +23,19 @@ export default defineEventHandler(async (event) => {
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 200) : ''
   if (!query) throw createError({ statusCode: 400, statusMessage: 'What would you like to search for?' })
 
-  let results: SearchResult[] = []
-  try {
+  async function askWorker(): Promise<SearchResult[]> {
     const res = await $fetch<{ results: SearchResult[] }>(`${env.downloadServiceUrl}/search`, {
       method: 'POST',
       headers: serviceAuthHeaders(),
       body: { query },
       timeout: 60_000,
     })
-    results = res.results ?? []
+    return res.results ?? []
+  }
+
+  let results: SearchResult[] = []
+  try {
+    results = await askWorker()
   } catch (err: any) {
     // Surface the worker's real reason (no results, blocked, too long, …)
     // instead of a generic outage message that hides the cause.
@@ -43,10 +47,16 @@ export default defineEventHandler(async (event) => {
         statusMessage: message,
       })
     }
-    throw createError({
-      statusCode: 503,
-      statusMessage: 'The music download service is momentarily unavailable. Please try again in a moment.',
-    })
+    // No real answer — likely a transient hiccup (YouTube, MusicBrainz, or
+    // the worker itself). Give it one more chance before telling the user.
+    try {
+      results = await askWorker()
+    } catch {
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'The search hit a snag — please give it another try in a moment.',
+      })
+    }
   }
 
   // Enforce the ten-minute rule server-side as well.

@@ -21,25 +21,37 @@ export const useDownloadsStore = defineStore('downloads', () => {
   let lastCompleteIds = new Set<string>()
   let started = false
 
+  // Search requests are slow (10–30s: YouTube + enrichment), so a new search
+  // can start while an older one is still in flight. Out-of-order responses
+  // are ignored via a sequence counter, and stale requests are aborted.
+  let searchSeq = 0
+  let searchController: AbortController | null = null
+
   const activeJobs = computed(() => jobs.value.filter((j) => ACTIVE_STATUSES.has(j.status)))
   const hasActiveJobs = computed(() => activeJobs.value.length > 0)
 
   async function search(query: string): Promise<SearchResult[]> {
+    const seq = ++searchSeq
+    searchController?.abort()
+    searchController = new AbortController()
     searching.value = true
     searchError.value = null
     try {
       const res = await $fetch<{ results: SearchResult[] }>('/api/downloads/search', {
         method: 'POST',
         body: { query },
+        signal: searchController.signal,
       })
+      if (seq !== searchSeq) return []
       results.value = res.results
       return res.results
     } catch (err: any) {
+      if (seq !== searchSeq) return []
       searchError.value = err?.data?.message || 'Searching is not available right now.'
       results.value = []
       return []
     } finally {
-      searching.value = false
+      if (seq === searchSeq) searching.value = false
     }
   }
 

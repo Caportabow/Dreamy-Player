@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, Heart, Library, ListMusic, Plus, UserRound } from 'lucide-vue-next'
+import { Heart, Library, ListMusic, Plus, UserRound } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 import { useAuthStore } from '~/stores/auth'
 import { useToast } from '~/composables/useToast'
@@ -15,7 +15,6 @@ const navItems = [
   { label: 'Library', to: '/', icon: Library },
   { label: 'Favourites', to: '/favourites', icon: Heart },
   { label: 'Playlists', to: '/playlists', icon: ListMusic },
-  { label: 'Add Music', to: '/add', icon: Download },
   { label: 'Profile', to: '/profile', icon: UserRound },
 ]
 

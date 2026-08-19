@@ -3,12 +3,17 @@ import { BadgeCheck, Download, Pause, Play, Plus } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useTrackPreview } from '~/composables/useTrackPreview'
 
-const props = defineProps<{
-  result: SearchResult
-  selected?: boolean
-  busy?: boolean
-}>()
-const emit = defineEmits<{ select: [result: SearchResult] }>()
+const props = withDefaults(
+  defineProps<{
+    result: SearchResult
+    selected?: boolean
+    busy?: boolean
+    /** Inline "Add to library" button instead of the select indicator. */
+    add?: boolean
+  }>(),
+  { selected: false, busy: false, add: false },
+)
+const emit = defineEmits<{ select: [result: SearchResult]; add: [result: SearchResult] }>()
 
 const { playingUrl, togglePreview } = useTrackPreview()
 
@@ -79,7 +84,20 @@ function toggle(): void {
       <Play v-else class="ml-0.5 h-4 w-4 fill-current" />
     </button>
 
+    <button
+      v-if="add"
+      type="button"
+      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-cream-muted transition-all duration-300 hover:bg-lavender-200 hover:text-night-950 hover:shadow-glow disabled:opacity-50"
+      :aria-label="`Add ${result.title} to the library`"
+      :title="'Add to library'"
+      :disabled="busy"
+      @click.stop="emit('add', result)"
+    >
+      <Download class="h-4 w-4" />
+    </button>
+
     <span
+      v-else
       class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-cream-muted transition-all duration-300"
       :class="
         selected
