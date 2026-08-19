@@ -176,9 +176,16 @@ useHead({ title: 'Library' })
 <template>
   <div class="animate-fade-in">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">{{ pageTitle }}</h1>
-        <p class="mt-1 text-sm text-cream-dim">{{ pageSubtitle }}</p>
+      <div class="flex items-center gap-3">
+        <div
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-pillow-lg bg-gradient-to-br from-plum-600/60 to-violet-700/40 shadow-glow"
+        >
+          <component :is="mode === 'library' ? LibraryIcon : Plus" class="h-5 w-5 text-lavender-200" />
+        </div>
+        <div>
+          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">{{ pageTitle }}</h1>
+          <p class="mt-1 text-sm text-cream-dim">{{ pageSubtitle }}</p>
+        </div>
       </div>
 
       <div class="flex flex-wrap items-center gap-2">

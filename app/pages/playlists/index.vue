@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus } from 'lucide-vue-next'
+import { ListMusic, Plus } from 'lucide-vue-next'
 import type { Playlist } from '~/types/music'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
@@ -42,9 +42,16 @@ useHead({ title: 'Playlists' })
 <template>
   <div class="animate-fade-in">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Playlists</h1>
-        <p class="mt-1 text-sm text-cream-dim">Shelves you have arranged yourself</p>
+      <div class="flex items-center gap-3">
+        <div
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-pillow-lg bg-gradient-to-br from-plum-600/60 to-violet-700/40 shadow-glow"
+        >
+          <ListMusic class="h-5 w-5 text-lavender-200" />
+        </div>
+        <div>
+          <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Playlists</h1>
+          <p class="mt-1 text-sm text-cream-dim">Shelves you have arranged yourself</p>
+        </div>
       </div>
       <Button class="self-start sm:self-auto" @click="createOpen = true">
         <Plus class="h-4 w-4" />
