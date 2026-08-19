@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Track } from '~/types/music'
 import { useAuthStore } from './auth'
+import { usePlayerStore } from './player'
 
 export type TrackSort = 'added' | 'title' | 'artist'
 
@@ -82,6 +83,26 @@ export const useLibraryStore = defineStore('library', () => {
     return addFavourite(track.id)
   }
 
+  /** Remove a song from this user's library (server also purges the shared
+   *  catalog entry when nobody else holds it). */
+  async function removeTrack(track: Track): Promise<boolean> {
+    if (!auth.isSignedIn) return false
+    try {
+      await $fetch(`/api/tracks/${track.id}`, { method: 'DELETE' })
+      tracks.value = tracks.value.filter((t) => t.id !== track.id)
+      total.value = Math.max(0, total.value - 1)
+      toggleFavouriteLocal(track.id, false)
+      // Drop it from the playback queue — its file may be gone if the catalog
+      // entry was purged, so it can no longer be played.
+      const player = usePlayerStore()
+      const idx = player.queue.findIndex((q) => q.id === track.id)
+      if (idx >= 0) player.removeFromQueue(idx)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** Called by the downloads store when a job completes. */
   function touch(): void {
     if (loaded.value) fetchTracks()
@@ -103,6 +124,7 @@ export const useLibraryStore = defineStore('library', () => {
     removeFavourite,
     toggleFavourite,
     toggleFavouriteLocal,
+    removeTrack,
     touch,
   }
 })
