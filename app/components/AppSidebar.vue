@@ -13,6 +13,7 @@ const createOpen = ref(false)
 
 const navItems = [
   { label: 'Library', to: '/', icon: Library },
+  { label: 'Add song', to: '/add', icon: Plus },
   { label: 'Favourites', to: '/favourites', icon: Heart },
   { label: 'Playlists', to: '/playlists', icon: ListMusic },
   { label: 'Profile', to: '/profile', icon: UserRound },

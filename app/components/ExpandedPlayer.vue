@@ -9,6 +9,7 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  X,
 } from 'lucide-vue-next'
 import { usePlayerStore } from '~/stores/player'
 import { mediaUrl } from '~/types/music'
