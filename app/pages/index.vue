@@ -3,17 +3,12 @@ import {
   ArrowDownUp,
   Check,
   Library as LibraryIcon,
-  Play,
   Search,
-  Shuffle,
   X,
 } from 'lucide-vue-next'
 import { useLibraryStore } from '~/stores/library'
-import { usePlayerStore } from '~/stores/player'
 
 const library = useLibraryStore()
-const player = usePlayerStore()
-
 const searchInput = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -43,19 +38,6 @@ watch(searchInput, () => {
     library.fetchTracks()
   }, 300)
 })
-
-function playAll(): void {
-  if (library.tracks.length > 0) player.playTrackList(library.sortedTracks, 0)
-}
-
-function shuffleAll(): void {
-  const tracks = library.sortedTracks
-  if (tracks.length === 0) return
-  // Smart shuffle: interleaves the two halves of the sorted list, so the
-  // queue stays spread across the active sort direction (newer↔older, A↔Z)
-  // instead of random clumps.
-  player.playTrackList(smartShuffle(tracks), 0)
-}
 
 /** Jump from "not in my library" straight to finding it online. */
 function searchOnline(): void {
@@ -181,18 +163,6 @@ useHead({ title: 'Library' })
         </DropdownMenu>
       </div>
     </header>
-
-    <!-- Play the whole filtered shelf in one tap -->
-    <div v-if="library.tracks.length > 0" class="mb-4 flex items-center gap-2">
-      <Button variant="secondary" size="sm" @click="playAll">
-        <Play class="h-4 w-4 fill-current" />
-        <span class="hidden sm:inline">Play all</span>
-      </Button>
-      <Button variant="secondary" size="sm" @click="shuffleAll">
-        <Shuffle class="h-4 w-4" />
-        <span class="hidden sm:inline">Shuffle</span>
-      </Button>
-    </div>
 
     <!-- loading skeleton -->
     <div
