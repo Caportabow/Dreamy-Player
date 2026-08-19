@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ArrowDownUp, Check, Loader2, Search, X } from 'lucide-vue-next'
+import { ArrowDownUp, Check, Library as LibraryIcon, Loader2, Plus, Search, X } from 'lucide-vue-next'
+import type { SegmentedTab } from '~/components/SegmentedTabs.vue'
 import type { SearchResult } from '~/types/music'
 import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
@@ -13,9 +14,9 @@ const toast = useToast()
 
 /** Which search the box feeds: your collection, or the internet. */
 const mode = ref<PageMode>('library')
-const viewModes: Array<{ value: PageMode; label: string }> = [
-  { value: 'library', label: 'Library' },
-  { value: 'add', label: 'Add songs' },
+const viewModes: SegmentedTab[] = [
+  { value: 'library', label: 'Library', icon: LibraryIcon },
+  { value: 'add', label: 'Add songs', icon: Plus },
 ]
 
 const searchInput = ref('')
@@ -86,11 +87,12 @@ watch(searchInput, () => {
   }, 300)
 })
 
-function switchMode(next: PageMode): void {
-  if (mode.value === next) return
-  mode.value = next
+function switchMode(next: string): void {
+  const target = next as PageMode
+  if (mode.value === target) return
+  mode.value = target
   // Carry the query over to the other engine.
-  if (next === 'add') {
+  if (target === 'add') {
     runRemoteSearch()
   } else {
     library.search = searchInput.value
@@ -168,28 +170,13 @@ useHead({ title: 'Library' })
 
       <div class="flex flex-wrap items-center gap-2">
         <!-- which search is the box feeding? -->
-        <div
-          class="flex shrink-0 items-center gap-1 rounded-pillow-sm bg-white/5 p-1 shadow-inner-soft"
-          role="tablist"
-          aria-label="Library view"
-        >
-          <button
-            v-for="m in viewModes"
-            :key="m.value"
-            type="button"
-            role="tab"
-            :aria-selected="mode === m.value"
-            class="rounded-pillow-sm px-4 py-1.5 text-sm font-medium transition-all duration-300"
-            :class="
-              mode === m.value
-                ? 'bg-lavender-200 text-night-950 shadow-glow'
-                : 'text-cream-muted hover:text-cream'
-            "
-            @click="switchMode(m.value)"
-          >
-            {{ m.label }}
-          </button>
-        </div>
+        <SegmentedTabs
+          :model-value="mode"
+          :items="viewModes"
+          label="Library view"
+          class="shrink-0"
+          @update:model-value="switchMode"
+        />
 
         <div class="relative min-w-0 flex-1 sm:w-72">
           <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
