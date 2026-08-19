@@ -25,7 +25,7 @@ const emits = defineEmits<SliderRootEmits>()
       <SliderRange class="absolute h-full rounded-full bg-lavender-400/80" />
     </SliderTrack>
     <SliderThumb
-      class="block h-4 w-4 rounded-full border-2 border-lavender-200 bg-lavender-100 shadow-glow transition-transform hover:scale-110 focus:outline-none"
+      class="block h-5 w-5 rounded-full border-2 border-lavender-200 bg-lavender-100 shadow-glow transition-transform hover:scale-110 focus:outline-none"
       aria-label="Volume"
     />
   </SliderRoot>

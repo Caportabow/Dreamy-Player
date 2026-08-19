@@ -93,9 +93,27 @@
     border-radius: 6px;
   }
 
+  /* 16px minimum on form fields: iOS Safari zooms into any field whose
+     font-size is below 16px when it gains focus. */
   input,
+  select,
   textarea {
     @apply placeholder:text-cream-dim/60;
+    font-size: 16px;
+  }
+
+  /* No grey flash on tap, and no double-tap-zoom delay on controls. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  a,
+  [role='button'],
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
   }
 }
 
@@ -191,7 +209,8 @@
   }
 
   .input-soft {
-    @apply w-full rounded-pillow-sm bg-white/5 px-5 py-3 text-sm text-cream placeholder:text-cream-dim/60 shadow-inner-soft transition-all duration-300 border border-white/5 focus:border-lavender-400/40 focus:bg-white/7 focus:ring-2 focus:ring-lavender-400/20 outline-none;
+    @apply w-full rounded-pillow-sm bg-white/5 px-5 py-3 text-cream placeholder:text-cream-dim/60 shadow-inner-soft transition-all duration-300 border border-white/5 focus:border-lavender-400/40 focus:bg-white/7 focus:ring-2 focus:ring-lavender-400/20 outline-none;
+    /* Font size comes from the 16px base rule — never smaller on touch. */
   }
 
   /* Nav item */
@@ -319,4 +338,37 @@ input[type='range']::-moz-range-thumb {
   background: #e6dcf4;
   border: none;
   box-shadow: 0 0 0 4px rgba(163, 145, 216, 0.25), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ------------------------------------------------------------------
+   Touch polish — phones and tablets
+   ------------------------------------------------------------------ */
+/* Press feedback on every control (buttons, tappable cards, rows).
+   Unlayered so it wins over the component-level :hover/:active
+   transforms. */
+@media (pointer: coarse) {
+  button:active,
+  [role='button']:active {
+    transform: scale(0.94);
+  }
+
+  /* Thumbs need bigger hit areas than a mouse cursor does. */
+  button.p-2 {
+    padding: 0.625rem;
+  }
+  button.p-1\.5,
+  button.p-1 {
+    padding: 0.5rem;
+  }
+}
+
+/* Touch has no hover, so a tap must not leave cards stuck “lifted” or
+   buttons stuck zoomed after the finger lifts. */
+@media (hover: none) {
+  .pillow-card:hover {
+    transform: none;
+  }
+  button:hover {
+    transform: none;
+  }
 }

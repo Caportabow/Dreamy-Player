@@ -45,7 +45,7 @@ function play(): void {
   >
     <GripVertical
       v-if="draggable"
-      class="h-4 w-4 shrink-0 cursor-grab text-cream-faint active:cursor-grabbing"
+      class="h-4 w-4 shrink-0 cursor-grab text-cream-faint active:cursor-grabbing [@media(pointer:coarse)]:hidden"
       aria-hidden="true"
     />
 

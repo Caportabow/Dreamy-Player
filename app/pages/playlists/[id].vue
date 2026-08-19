@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Play, Plus, Shuffle, Trash2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronUp, Pencil, Play, Plus, Shuffle, Trash2 } from 'lucide-vue-next'
 import type { Playlist, Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
@@ -64,6 +64,11 @@ async function onDrop(): Promise<void> {
   const prev = [...tracks.value]
   const [moved] = tracks.value.splice(from, 1)
   tracks.value.splice(to, 0, moved!)
+  await persistOrder(prev)
+}
+
+/** Save the (already-optimistically-updated) order, rolling back on error. */
+async function persistOrder(rollback: Track[]): Promise<void> {
   saving.value = true
   try {
     await $fetch(`/api/playlists/${playlistId.value}/tracks`, {
@@ -72,11 +77,21 @@ async function onDrop(): Promise<void> {
     })
     toast.success('Playlist order saved.')
   } catch (err: any) {
-    tracks.value = prev
+    tracks.value = rollback
     toast.error(apiErrorMessage(err, 'The order could not be saved.'))
   } finally {
     saving.value = false
   }
+}
+
+/** Phones can't use HTML5 drag — move one step up/down instead. */
+function moveTrack(index: number, delta: number): void {
+  const to = index + delta
+  if (to < 0 || to >= tracks.value.length) return
+  const prev = [...tracks.value]
+  const [moved] = tracks.value.splice(index, 1)
+  tracks.value.splice(to, 0, moved!)
+  void persistOrder(prev)
 }
 
 async function removeTrack(track: Track): Promise<void> {
@@ -180,7 +195,7 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
         <div
           v-for="(track, i) in tracks"
           :key="track.id"
-          class="rounded-pillow-sm transition-all duration-200"
+          class="flex items-center gap-1 rounded-pillow-sm transition-all duration-200"
           :class="{
             'bg-lavender-400/10 ring-1 ring-lavender-400/30': dragOverIndex === i,
             'opacity-60': dragIndex === i,
@@ -191,14 +206,37 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
           @dragleave="dragOverIndex === i && (dragOverIndex = null)"
           @drop="onDrop"
         >
-          <TrackRow
-            :track="track"
-            :list="tracks"
-            draggable
-            :remove-label="`Remove ${track.title}`"
-            @remove="removeTrack"
-            @toggle="(fav) => (track.favourite = fav)"
-          />
+          <!-- HTML5 drag is mouse-only; touch devices reorder with up/down -->
+          <div class="hidden shrink-0 flex-col items-center [@media(pointer:coarse)]:flex">
+            <button
+              type="button"
+              class="rounded-full p-1.5 text-cream-faint transition-colors hover:bg-white/8 hover:text-cream disabled:pointer-events-none disabled:opacity-30"
+              :disabled="i === 0"
+              :aria-label="`Move ${track.title} up`"
+              @click.stop="moveTrack(i, -1)"
+            >
+              <ChevronUp class="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              class="rounded-full p-1.5 text-cream-faint transition-colors hover:bg-white/8 hover:text-cream disabled:pointer-events-none disabled:opacity-30"
+              :disabled="i === tracks.length - 1"
+              :aria-label="`Move ${track.title} down`"
+              @click.stop="moveTrack(i, 1)"
+            >
+              <ChevronDown class="h-4 w-4" />
+            </button>
+          </div>
+          <div class="min-w-0 flex-1">
+            <TrackRow
+              :track="track"
+              :list="tracks"
+              draggable
+              :remove-label="`Remove ${track.title}`"
+              @remove="removeTrack"
+              @toggle="(fav) => (track.favourite = fav)"
+            />
+          </div>
         </div>
       </div>
 

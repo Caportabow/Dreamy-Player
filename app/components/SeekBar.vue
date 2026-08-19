@@ -95,7 +95,7 @@ function onPointerUp(e: PointerEvent): void {
     </div>
 
     <div
-      class="absolute h-4 w-4 -translate-x-1/2 rounded-full bg-lavender-100 opacity-0 shadow-glow transition-opacity duration-200 group-hover:opacity-100"
+      class="absolute h-4 w-4 -translate-x-1/2 rounded-full bg-lavender-100 opacity-0 shadow-glow transition-opacity duration-200 group-hover:opacity-100 [@media(pointer:coarse)]:h-5 [@media(pointer:coarse)]:w-5 [@media(pointer:coarse)]:opacity-100"
       :style="{ left: `${percent}%` }"
       :class="{ '!opacity-100': dragging }"
     />

@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { Plus } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
-import { useAuthStore } from '~/stores/auth'
-import { useToast } from '~/composables/useToast'
 
 const emit = defineEmits<{ navigate: [] }>()
 
 const route = useRoute()
-const auth = useAuthStore()
-const toast = useToast()
 const createOpen = ref(false)
 
 // Shared with the mobile bottom bar — see ~/utils/navigation.
