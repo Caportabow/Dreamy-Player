@@ -5,9 +5,18 @@ import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
+type PageMode = 'library' | 'add'
+
 const library = useLibraryStore()
 const downloads = useDownloadsStore()
 const toast = useToast()
+
+/** Which search the box feeds: your collection, or the internet. */
+const mode = ref<PageMode>('library')
+const viewModes: Array<{ value: PageMode; label: string }> = [
+  { value: 'library', label: 'Library' },
+  { value: 'add', label: 'Add songs' },
+]
 
 const searchInput = ref('')
 const addingId = ref<string | null>(null)
@@ -27,6 +36,16 @@ const currentSortLabel = computed(
 /** "Newest first" reads naturally for added; A→Z / Z→A for names. */
 const orderLabels = computed(() =>
   library.sort === 'added' ? ['Newest first', 'Oldest first'] : ['A → Z', 'Z → A'],
+)
+
+const pageTitle = computed(() => (mode.value === 'library' ? 'Library' : 'Add songs'))
+const pageSubtitle = computed(() =>
+  mode.value === 'library'
+    ? `${library.total} ${library.total === 1 ? 'song' : 'songs'} resting in the collection`
+    : 'Find something new for the collection',
+)
+const searchPlaceholder = computed(() =>
+  mode.value === 'library' ? 'Search songs, artists, albums…' : 'Search for a song to add…',
 )
 
 /** Search the download service for songs that could be added to the library. */
@@ -50,14 +69,36 @@ function retrySearch(): void {
   void downloads.search(q)
 }
 
+/** One query, two lenses — the box feeds whichever mode is active. */
 watch(searchInput, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
-    library.search = searchInput.value
-    library.fetchTracks()
-    runRemoteSearch()
+    if (mode.value === 'add') {
+      runRemoteSearch()
+    } else {
+      library.search = searchInput.value
+      library.fetchTracks()
+    }
   }, 300)
 })
+
+function switchMode(next: PageMode): void {
+  if (mode.value === next) return
+  mode.value = next
+  // Carry the query over to the other engine.
+  if (next === 'add') {
+    runRemoteSearch()
+  } else {
+    library.search = searchInput.value
+    library.fetchTracks()
+  }
+}
+
+/** Jump from "not in my library" straight to finding it online. */
+function searchOnline(): void {
+  switchMode('add')
+  focusSearch()
+}
 
 async function addResult(result: SearchResult): Promise<void> {
   if (addingId.value) return
@@ -92,7 +133,7 @@ function clearSearch(): void {
   downloads.reset()
   lastSearchQuery = ''
   library.search = ''
-  void library.fetchTracks()
+  if (mode.value === 'library') void library.fetchTracks()
 }
 
 function changeSort(value: string): void {
@@ -117,22 +158,44 @@ useHead({ title: 'Library' })
   <div class="animate-fade-in">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">Library</h1>
-        <p class="mt-1 text-sm text-cream-dim">
-          {{ library.total }} {{ library.total === 1 ? 'song' : 'songs' }} resting in the collection
-        </p>
+        <h1 class="font-display text-2xl font-semibold text-cream sm:text-3xl">{{ pageTitle }}</h1>
+        <p class="mt-1 text-sm text-cream-dim">{{ pageSubtitle }}</p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <div class="relative flex-1 sm:w-72">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- which search is the box feeding? -->
+        <div
+          class="flex shrink-0 items-center gap-1 rounded-pillow-sm bg-white/5 p-1 shadow-inner-soft"
+          role="tablist"
+          aria-label="Library view"
+        >
+          <button
+            v-for="m in viewModes"
+            :key="m.value"
+            type="button"
+            role="tab"
+            :aria-selected="mode === m.value"
+            class="rounded-pillow-sm px-4 py-1.5 text-sm font-medium transition-all duration-300"
+            :class="
+              mode === m.value
+                ? 'bg-lavender-200 text-night-950 shadow-glow'
+                : 'text-cream-muted hover:text-cream'
+            "
+            @click="switchMode(m.value)"
+          >
+            {{ m.label }}
+          </button>
+        </div>
+
+        <div class="relative min-w-0 flex-1 sm:w-72">
           <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
           <Input
             id="library-search"
             v-model="searchInput"
             type="search"
-            placeholder="Search songs, artists, albums…"
+            :placeholder="searchPlaceholder"
             class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
-            aria-label="Search songs to play or add"
+            :aria-label="mode === 'library' ? 'Search songs to play' : 'Search for songs to add'"
           />
           <Transition
             enter-active-class="transition duration-200 ease-out"
@@ -146,7 +209,7 @@ useHead({ title: 'Library' })
               v-if="searchInput"
               type="button"
               class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
-              aria-label="Clear search and return to the library"
+              aria-label="Clear search"
               title="Clear search"
               @click="clearSearch"
             >
@@ -155,8 +218,8 @@ useHead({ title: 'Library' })
           </Transition>
         </div>
 
-        <!-- Sort only affects the library grid, not remote search results — hide it while a query is active.
-             The wrapper collapses its width so the search bar glides wider instead of jumping. -->
+        <!-- Sort only applies to the library grid — hidden in Add songs mode.
+             The wrapper collapses its width so the search bar glides instead of jumping. -->
         <Transition
           enter-active-class="transition-all duration-300 ease-out"
           enter-from-class="w-0 opacity-0"
@@ -165,154 +228,171 @@ useHead({ title: 'Library' })
           leave-from-class="w-9 opacity-100"
           leave-to-class="w-0 opacity-0"
         >
-        <div v-if="!searchInput.trim()" class="w-9 overflow-hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="subtle"
-                size="icon"
-                class="h-9 w-9 rounded-full text-cream-muted hover:text-cream"
-                :aria-label="`Sort by ${currentSortLabel}`"
-                :title="`Sort by ${currentSortLabel}`"
-              >
-                <ArrowDownUp class="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-44">
-              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-              <DropdownMenuItem
-                v-for="opt in sortOptions"
-                :key="opt.value"
-                :class="library.sort === opt.value ? 'text-lavender-200' : ''"
-                @select="changeSort(opt.value)"
-              >
-                <Check v-if="library.sort === opt.value" class="h-4 w-4" />
-                <span v-else class="h-4 w-4" />
-                {{ opt.label }}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Order</DropdownMenuLabel>
-              <DropdownMenuItem
-                :class="library.order === 'desc' ? 'text-lavender-200' : ''"
-                @select="setOrder('desc')"
-              >
-                <Check v-if="library.order === 'desc'" class="h-4 w-4" />
-                <span v-else class="h-4 w-4" />
-                {{ orderLabels[0] }}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                :class="library.order === 'asc' ? 'text-lavender-200' : ''"
-                @select="setOrder('asc')"
-              >
-                <Check v-if="library.order === 'asc'" class="h-4 w-4" />
-                <span v-else class="h-4 w-4" />
-                {{ orderLabels[1] }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          <div v-if="mode === 'library'" class="w-9 overflow-hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="subtle"
+                  size="icon"
+                  class="h-9 w-9 rounded-full text-cream-muted hover:text-cream"
+                  :aria-label="`Sort by ${currentSortLabel}`"
+                  :title="`Sort by ${currentSortLabel}`"
+                >
+                  <ArrowDownUp class="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-44">
+                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                <DropdownMenuItem
+                  v-for="opt in sortOptions"
+                  :key="opt.value"
+                  :class="library.sort === opt.value ? 'text-lavender-200' : ''"
+                  @select="changeSort(opt.value)"
+                >
+                  <Check v-if="library.sort === opt.value" class="h-4 w-4" />
+                  <span v-else class="h-4 w-4" />
+                  {{ opt.label }}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Order</DropdownMenuLabel>
+                <DropdownMenuItem
+                  :class="library.order === 'desc' ? 'text-lavender-200' : ''"
+                  @select="setOrder('desc')"
+                >
+                  <Check v-if="library.order === 'desc'" class="h-4 w-4" />
+                  <span v-else class="h-4 w-4" />
+                  {{ orderLabels[0] }}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  :class="library.order === 'asc' ? 'text-lavender-200' : ''"
+                  @select="setOrder('asc')"
+                >
+                  <Check v-if="library.order === 'asc'" class="h-4 w-4" />
+                  <span v-else class="h-4 w-4" />
+                  {{ orderLabels[1] }}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </Transition>
       </div>
     </header>
 
-    <!-- add new songs: search the catalog while the query is active -->
-    <div
-      v-if="
-        searchInput.trim() &&
-        (downloads.searching || downloads.results.length > 0 || downloads.searchError)
-      "
-      class="mb-8"
+    <Transition
+      mode="out-in"
+      enter-active-class="animate-fade-in-up"
+      leave-active-class="animate-fade-out-down"
     >
-      <div class="mb-3 flex items-center justify-between">
-        <h2 class="text-sm font-medium text-cream-muted">Add new songs</h2>
+      <!-- Add songs mode: search the catalog, preview, add -->
+      <div v-if="mode === 'add'" key="add">
+        <template v-if="!searchInput.trim()">
+          <div
+            class="flex flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-16 text-center"
+          >
+            <Equalizer class="h-8" />
+            <p class="text-sm text-cream-dim">
+              Type above to search for new songs — preview them and add them in one tap.
+            </p>
+          </div>
+        </template>
+        <template v-else>
+          <div
+            v-if="downloads.searchError"
+            class="mb-3 flex flex-wrap items-center justify-center gap-2 text-sm text-rose-200/90"
+          >
+            <span>{{ downloads.searchError }}</span>
+            <Button variant="ghost" size="sm" :disabled="downloads.searching" @click="retrySearch">
+              Try again
+            </Button>
+          </div>
+
+          <!-- searching animation -->
+          <div
+            v-if="downloads.searching && downloads.results.length === 0"
+            class="flex animate-fade-in flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-10"
+          >
+            <div class="relative flex h-14 w-14 items-center justify-center">
+              <span class="absolute inset-0 animate-breathe rounded-full bg-lavender-400/15" />
+              <span
+                class="absolute inset-1 animate-spin-slow rounded-full border border-lavender-400/25"
+                style="border-top-color: transparent; border-right-color: transparent"
+              />
+              <Equalizer active class="h-5" />
+            </div>
+            <p class="text-sm text-cream-dim">Searching for “{{ searchInput.trim() }}”…</p>
+          </div>
+
+          <!-- results, gently staggered -->
+          <div v-else-if="downloads.results.length > 0" class="flex flex-col gap-2.5">
+            <div
+              v-for="(result, i) in downloads.results"
+              :key="result.id"
+              class="animate-fade-in-up"
+              :style="{ animationDelay: `${Math.min(i, 5) * 60}ms` }"
+            >
+              <SearchResultCard
+                :result="result"
+                add
+                :busy="addingId === result.id"
+                @add="addResult"
+              />
+            </div>
+          </div>
+
+          <p v-else-if="!downloads.searching" class="py-6 text-center text-sm text-cream-dim">
+            No new songs found for “{{ searchInput }}”.
+          </p>
+        </template>
       </div>
 
-      <div
-        v-if="downloads.searchError"
-        class="mb-3 flex flex-wrap items-center justify-center gap-2 text-sm text-rose-200/90"
-      >
-        <span>{{ downloads.searchError }}</span>
-        <Button variant="ghost" size="sm" :disabled="downloads.searching" @click="retrySearch">
-          Try again
-        </Button>
-      </div>
-
-      <!-- searching animation -->
-      <div
-        v-if="downloads.searching && downloads.results.length === 0"
-        class="flex animate-fade-in flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-10"
-      >
-        <div class="relative flex h-14 w-14 items-center justify-center">
-          <span class="absolute inset-0 animate-breathe rounded-full bg-lavender-400/15" />
-          <span
-            class="absolute inset-1 animate-spin-slow rounded-full border border-lavender-400/25"
-            style="border-top-color: transparent; border-right-color: transparent"
-          />
-          <Equalizer active class="h-5" />
-        </div>
-        <p class="text-sm text-cream-dim">Searching for “{{ searchInput.trim() }}”…</p>
-      </div>
-
-      <!-- results, gently staggered -->
-      <div v-else-if="downloads.results.length > 0" class="flex flex-col gap-2.5">
+      <!-- Library mode: filter the collection -->
+      <div v-else key="library">
+        <!-- loading skeleton -->
         <div
-          v-for="(result, i) in downloads.results"
-          :key="result.id"
-          class="animate-fade-in-up"
-          :style="{ animationDelay: `${Math.min(i, 5) * 60}ms` }"
+          v-if="library.loading && library.tracks.length === 0"
+          class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
         >
-          <SearchResultCard
-            :result="result"
-            add
-            :busy="addingId === result.id"
-            @add="addResult"
-          />
+          <div v-for="i in 10" :key="i" class="pillow-card p-3">
+            <Skeleton class="mb-3 aspect-square w-full rounded-pillow-sm" />
+            <Skeleton class="mb-2 h-4 w-3/4" />
+            <Skeleton class="h-3 w-1/2" />
+          </div>
+        </div>
+
+        <!-- error -->
+        <EmptyState
+          v-else-if="library.error && library.tracks.length === 0"
+          title="The library is dozing off"
+          description="We couldn't reach it just now. Give it a nudge and try again."
+        >
+          <Button @click="library.fetchTracks()">Try again</Button>
+        </EmptyState>
+
+        <!-- empty library -->
+        <EmptyState
+          v-else-if="library.tracks.length === 0 && !searchInput.trim()"
+          title="A quiet room, so far"
+          description="Search the internet for a song and add it to start your collection."
+        >
+          <Button @click="searchOnline">Add your first song</Button>
+        </EmptyState>
+
+        <!-- grid -->
+        <div
+          v-else-if="library.tracks.length > 0"
+          class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+        >
+          <TrackCard v-for="track in library.sortedTracks" :key="track.id" :track="track" :list="library.sortedTracks" />
+        </div>
+
+        <!-- searching, but nothing in the library matches — offer to look online -->
+        <div v-else-if="library.search && !library.loading" class="flex flex-col items-center gap-3 py-12 text-center">
+          <p class="text-sm text-cream-dim">No songs in your library match “{{ library.search }}”.</p>
+          <Button variant="secondary" size="sm" @click="searchOnline">
+            Search online for “{{ library.search }}”
+          </Button>
         </div>
       </div>
-
-      <p v-else-if="!downloads.searching" class="py-6 text-center text-sm text-cream-dim">
-        No new songs found for “{{ searchInput }}”.
-      </p>
-    </div>
-
-    <!-- loading skeleton -->
-    <div v-if="library.loading && library.tracks.length === 0" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      <div v-for="i in 10" :key="i" class="pillow-card p-3">
-        <Skeleton class="mb-3 aspect-square w-full rounded-pillow-sm" />
-        <Skeleton class="mb-2 h-4 w-3/4" />
-        <Skeleton class="h-3 w-1/2" />
-      </div>
-    </div>
-
-    <!-- error -->
-    <EmptyState
-      v-else-if="library.error && library.tracks.length === 0"
-      title="The library is dozing off"
-      description="We couldn't reach it just now. Give it a nudge and try again."
-    >
-      <Button @click="library.fetchTracks()">Try again</Button>
-    </EmptyState>
-
-    <!-- empty library (only when not searching) -->
-    <EmptyState
-      v-else-if="library.tracks.length === 0 && !searchInput.trim()"
-      title="A quiet room, so far"
-      description="Search for a song — if it isn't in your library yet, you can add it right from the results."
-    >
-      <Button @click="focusSearch">Search for songs</Button>
-    </EmptyState>
-
-    <!-- grid -->
-    <div v-else-if="library.tracks.length > 0" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      <TrackCard v-for="track in library.sortedTracks" :key="track.id" :track="track" :list="library.sortedTracks" />
-    </div>
-
-    <!-- searching, but nothing in the library matches -->
-    <p
-      v-else-if="library.search && !library.loading"
-      class="py-10 text-center text-sm text-cream-dim"
-    >
-      No songs in your library match “{{ library.search }}”.
-    </p>
+    </Transition>
   </div>
 </template>
