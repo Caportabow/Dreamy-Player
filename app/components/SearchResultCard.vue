@@ -61,7 +61,7 @@ function toggle(): void {
         {{ result.artist }}{{ result.album ? ` · ${result.album}` : '' }}
       </p>
       <p class="mt-0.5 text-[11px] tabular-nums text-cream-faint">
-        {{ formatDuration(result.duration) }} · under five minutes
+        {{ formatDuration(result.duration) }}
       </p>
     </div>
 
