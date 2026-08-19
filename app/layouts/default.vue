@@ -54,5 +54,7 @@ const sheetOpen = ref(false)
     <!-- The player only exists for signed-in users; guests cannot stream media. -->
     <BottomPlayer v-if="auth.isSignedIn" />
     <ExpandedPlayer v-if="auth.isSignedIn" />
+    <!-- Download progress follows the user anywhere in the app. -->
+    <DownloadProgressCard v-if="auth.isSignedIn" />
   </div>
 </template>

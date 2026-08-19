@@ -62,9 +62,7 @@ async function addResult(result: SearchResult): Promise<void> {
       artworkUrl: result.artworkUrl || result.thumbnail || '',
       mbid: result.mbid,
     })
-    if (job) {
-      toast.success('Added to the queue — it will appear in your library soon.')
-    } else if (addedTrackId) {
+    if (addedTrackId) {
       toast.success('This song was already saved — added to your library.')
     }
   } catch (err: any) {
@@ -88,9 +86,9 @@ function toggleOrder(): void {
   library.fetchTracks()
 }
 
-onMounted(async () => {
-  await Promise.all([library.fetchTracks(), downloads.fetchJobs()])
-  if (downloads.hasActiveJobs) downloads.ensurePolling()
+// Job polling lives in app.vue now — this page only loads the library.
+onMounted(() => {
+  void library.fetchTracks()
 })
 
 useHead({ title: 'Library' })
@@ -145,8 +143,8 @@ useHead({ title: 'Library' })
     >
       <div class="mb-3 flex items-center justify-between">
         <h2 class="text-sm font-medium text-cream-muted">Add new songs</h2>
-        <p v-if="downloads.searching" class="text-[11px] text-cream-faint">Listening for results…</p>
       </div>
+
       <div
         v-if="downloads.searchError"
         class="mb-3 flex flex-wrap items-center justify-center gap-2 text-sm text-rose-200/90"
@@ -156,20 +154,41 @@ useHead({ title: 'Library' })
           Try again
         </Button>
       </div>
-      <div v-if="downloads.results.length > 0" class="flex flex-col gap-2.5">
-        <SearchResultCard
-          v-for="result in downloads.results"
-          :key="result.id"
-          :result="result"
-          add
-          :busy="addingId === result.id"
-          @add="addResult"
-        />
+
+      <!-- searching animation -->
+      <div
+        v-if="downloads.searching && downloads.results.length === 0"
+        class="flex animate-fade-in flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-10"
+      >
+        <div class="relative flex h-14 w-14 items-center justify-center">
+          <span class="absolute inset-0 animate-breathe rounded-full bg-lavender-400/15" />
+          <span
+            class="absolute inset-1 animate-spin-slow rounded-full border border-lavender-400/25"
+            style="border-top-color: transparent; border-right-color: transparent"
+          />
+          <Equalizer active class="h-5" />
+        </div>
+        <p class="text-sm text-cream-dim">Searching for “{{ searchInput.trim() }}”…</p>
       </div>
-      <p v-else-if="downloads.searching" class="py-6 text-center text-sm text-cream-dim">
-        Listening for results…
-      </p>
-      <p v-else class="py-6 text-center text-sm text-cream-dim">
+
+      <!-- results, gently staggered -->
+      <div v-else-if="downloads.results.length > 0" class="flex flex-col gap-2.5">
+        <div
+          v-for="(result, i) in downloads.results"
+          :key="result.id"
+          class="animate-fade-in-up"
+          :style="{ animationDelay: `${Math.min(i, 5) * 60}ms` }"
+        >
+          <SearchResultCard
+            :result="result"
+            add
+            :busy="addingId === result.id"
+            @add="addResult"
+          />
+        </div>
+      </div>
+
+      <p v-else-if="!downloads.searching" class="py-6 text-center text-sm text-cream-dim">
         No new songs found for “{{ searchInput }}”.
       </p>
     </div>

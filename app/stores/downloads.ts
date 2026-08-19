@@ -16,6 +16,9 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const jobs = ref<DownloadJob[]>([])
   const loadingJobs = ref(false)
   const creating = ref(false)
+  /** Title of the most recently completed job — lets the UI show a brief "done" flash. */
+  const completedTitle = ref<string | null>(null)
+  let completedTimer: ReturnType<typeof setTimeout> | null = null
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let lastCompleteIds = new Set<string>()
@@ -36,6 +39,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
     searchController = new AbortController()
     searching.value = true
     searchError.value = null
+    // Drop stale results from a previous query while the new one is in flight.
+    results.value = []
     try {
       const res = await $fetch<{ results: SearchResult[] }>('/api/downloads/search', {
         method: 'POST',
@@ -109,6 +114,14 @@ export const useDownloadsStore = defineStore('downloads', () => {
     const freshlyComplete = [...completedNow].filter((id) => !lastCompleteIds.has(id))
     if (freshlyComplete.length > 0) {
       library.touch()
+      const done = next.find((j) => j.id === freshlyComplete[0])
+      if (done?.title) {
+        completedTitle.value = done.title
+        if (completedTimer) clearTimeout(completedTimer)
+        completedTimer = setTimeout(() => {
+          completedTitle.value = null
+        }, 4000)
+      }
     }
     lastCompleteIds = completedNow
   }
@@ -142,6 +155,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
     jobs,
     loadingJobs,
     creating,
+    completedTitle,
     activeJobs,
     hasActiveJobs,
     search,
