@@ -60,11 +60,6 @@ async function startDownload(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  await downloads.fetchJobs()
-  if (downloads.hasActiveJobs) downloads.ensurePolling()
-})
-
 // A preview is a short listen — never keep it playing after leaving the page.
 onUnmounted(stopPreview)
 
@@ -150,13 +145,5 @@ useHead({ title: 'Add Music' })
     <p v-else-if="downloads.searching" class="mt-10 text-center text-sm text-cream-dim">
       Listening for results…
     </p>
-
-    <!-- jobs -->
-    <div v-if="downloads.jobs.length > 0" class="mt-10">
-      <h2 class="mb-3 text-sm font-medium text-cream-muted">Recent downloads</h2>
-      <div class="flex flex-col gap-2.5">
-        <DownloadJobCard v-for="job in downloads.jobs" :key="job.id" :job="job" />
-      </div>
-    </div>
   </div>
 </template>
