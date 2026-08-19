@@ -1,19 +1,11 @@
 <script setup lang="ts">
-import { Heart, Library, ListMusic, Plus, UserRound } from 'lucide-vue-next'
-
 const route = useRoute()
 
-const items = [
-  { label: 'Library', to: '/', icon: Library },
-  { label: 'Add song', to: '/add', icon: Plus },
-  { label: 'Favourites', to: '/favourites', icon: Heart },
-  { label: 'Playlists', to: '/playlists', icon: ListMusic },
-  { label: 'Profile', to: '/profile', icon: UserRound },
-]
+// Shared with the desktop sidebar — see ~/utils/navigation.
+const items = mainNavItems
 
 function isActive(to: string): boolean {
-  if (to === '/') return route.path === '/'
-  return route.path === to || route.path.startsWith(`${to}/`)
+  return isMainNavActive(route.path, to)
 }
 </script>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Heart, Library, ListMusic, Plus, UserRound } from 'lucide-vue-next'
+import { Plus } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 import { useAuthStore } from '~/stores/auth'
 import { useToast } from '~/composables/useToast'
@@ -11,17 +11,11 @@ const auth = useAuthStore()
 const toast = useToast()
 const createOpen = ref(false)
 
-const navItems = [
-  { label: 'Library', to: '/', icon: Library },
-  { label: 'Add song', to: '/add', icon: Plus },
-  { label: 'Favourites', to: '/favourites', icon: Heart },
-  { label: 'Playlists', to: '/playlists', icon: ListMusic },
-  { label: 'Profile', to: '/profile', icon: UserRound },
-]
+// Shared with the mobile bottom bar — see ~/utils/navigation.
+const navItems = mainNavItems
 
 function isActive(to: string): boolean {
-  if (to === '/') return route.path === '/'
-  return route.path === to || route.path.startsWith(`${to}/`)
+  return isMainNavActive(route.path, to)
 }
 
 function onCreatePlaylist(): void {

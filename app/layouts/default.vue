@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { Menu } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 
 const auth = useAuthStore()
-const sheetOpen = ref(false)
 </script>
 
 <template>
@@ -17,30 +15,16 @@ const sheetOpen = ref(false)
       </div>
     </aside>
 
-    <!-- Mobile top bar (signed-in users only) -->
-    <header v-if="auth.isSignedIn" class="sticky top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur-xl lg:hidden">
+    <!-- Mobile top bar (signed-in users only): the bottom bar handles
+         navigation, so this just carries the brand. -->
+    <header
+      v-if="auth.isSignedIn"
+      class="sticky top-0 z-30 flex items-center justify-center px-4 py-3 backdrop-blur-xl lg:hidden"
+    >
       <NuxtLink to="/" class="flex items-center gap-2.5">
         <AppLogo :size="30" />
         <span class="font-display text-lg font-semibold text-cream">Dreamy</span>
       </NuxtLink>
-      <Sheet v-model:open="sheetOpen">
-        <SheetTrigger as-child>
-          <button
-            type="button"
-            class="rounded-full bg-white/5 p-2.5 text-cream-muted backdrop-blur-md transition-colors hover:bg-white/10 hover:text-cream"
-            aria-label="Open menu"
-          >
-            <Menu class="h-5 w-5" />
-          </button>
-        </SheetTrigger>
-        <SheetContent side="left" class="w-[85%] max-w-xs p-5">
-          <SheetHeader class="sr-only">
-            <SheetTitle>Menu</SheetTitle>
-            <SheetDescription>Primary navigation</SheetDescription>
-          </SheetHeader>
-          <AppSidebar @navigate="sheetOpen = false" />
-        </SheetContent>
-      </Sheet>
     </header>
 
     <!-- Main content -->
