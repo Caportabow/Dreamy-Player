@@ -19,8 +19,19 @@ const player = usePlayerStore()
 const isCurrent = computed(() => player.current?.id === props.track.id)
 const isPlayingThis = computed(() => isCurrent.value && player.isPlaying)
 
+let lastClickAt = 0
+
 /** Clicking a row plays it inside its surrounding list so next/prev move through it. */
 function play(): void {
+  // A double-click fires two click events; the second would restart the track
+  // mid-flight, so swallow any click landing inside the double-click window
+  // (the first click already did the playing).
+  const now = Date.now()
+  if (now - lastClickAt < 300) {
+    lastClickAt = 0
+    return
+  }
+  lastClickAt = now
   if (props.list && props.list.length > 1) player.playInList(props.track, props.list)
   else player.playTrack(props.track)
 }
@@ -30,7 +41,6 @@ function play(): void {
   <div
     class="group flex cursor-pointer items-center gap-3 rounded-pillow-sm px-2.5 py-2 transition-colors duration-300 hover:bg-white/5"
     :class="{ 'bg-white/5': isCurrent }"
-    @dblclick="play()"
     @click="play()"
   >
     <GripVertical
@@ -66,7 +76,7 @@ function play(): void {
       <button
         v-if="removeLabel"
         type="button"
-        class="rounded-full p-2 text-cream-faint opacity-0 transition-all hover:bg-white/5 hover:text-rose-200 group-hover:opacity-100"
+        class="rounded-full p-2 text-cream-faint opacity-0 transition-all hover:bg-white/5 hover:text-rose-200 group-hover:opacity-100 [@media(hover:none)]:opacity-70"
         :aria-label="removeLabel"
         @click.stop="emit('remove', track)"
       >

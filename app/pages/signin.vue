@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Fingerprint, KeyRound, LogIn, MoonStar } from 'lucide-vue-next'
+import { Fingerprint, LogIn } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
 import { usePasskeys } from '~/composables/usePasskeys'

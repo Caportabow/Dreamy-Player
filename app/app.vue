@@ -25,7 +25,28 @@ onMounted(() => {
   player.restore()
   void downloads.fetchJobs()
   if (downloads.hasActiveJobs) downloads.ensurePolling()
+  window.addEventListener('keydown', onKeydown)
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+/** Space toggles play/pause from anywhere — a music player's first instinct. */
+function onKeydown(e: KeyboardEvent): void {
+  if (e.code !== 'Space') return
+  // Never hijack keys while typing or inside dialogs/menus/dropdowns.
+  const target = e.target as HTMLElement | null
+  if (
+    target?.closest('input, textarea, select, [contenteditable], [role="dialog"], [role="menu"], [role="listbox"]')
+  ) {
+    return
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  // The expanded player already owns the space key while it is open.
+  if (player.isExpanded) return
+  if (!player.current) return
+  e.preventDefault()
+  player.toggle()
+}
 
 // After sign-in/out, make sure player and download state land in the right
 // store.

@@ -1,14 +1,5 @@
 <script setup lang="ts">
-import {
-  GripVertical,
-  ListMusic,
-  Pencil,
-  Play,
-  Plus,
-  Search,
-  Shuffle,
-  Trash2,
-} from 'lucide-vue-next'
+import { Pencil, Play, Plus, Shuffle, Trash2 } from 'lucide-vue-next'
 import type { Playlist, Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
@@ -166,7 +157,7 @@ useHead({ title: computed(() => playlist.value?.name ?? 'Playlist') })
         </div>
       </header>
 
-      <div class="mb-4 flex items-center justify-between">
+      <div v-if="tracks.length > 0" class="mb-4 flex items-center justify-between">
         <h2 class="text-sm font-medium text-cream-muted">Track order</h2>
         <Button variant="secondary" size="sm" @click="addOpen = true">
           <Plus class="h-4 w-4" />

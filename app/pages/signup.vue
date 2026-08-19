@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoonStar, Sparkles } from 'lucide-vue-next'
+import { Sparkles } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'

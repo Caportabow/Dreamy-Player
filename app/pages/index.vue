@@ -1,15 +1,27 @@
 <script setup lang="ts">
-import { ArrowDownUp, Check, Library as LibraryIcon, Loader2, Plus, Search, X } from 'lucide-vue-next'
+import {
+  ArrowDownUp,
+  Check,
+  Library as LibraryIcon,
+  Loader2,
+  Play,
+  Plus,
+  Search,
+  Shuffle,
+  X,
+} from 'lucide-vue-next'
 import type { SegmentedTab } from '~/components/SegmentedTabs.vue'
 import type { SearchResult } from '~/types/music'
 import { useLibraryStore } from '~/stores/library'
 import { useDownloadsStore } from '~/stores/downloads'
+import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
 type PageMode = 'library' | 'add'
 
 const library = useLibraryStore()
 const downloads = useDownloadsStore()
+const player = usePlayerStore()
 const toast = useToast()
 
 /** Which search the box feeds: your collection, or the internet. */
@@ -150,6 +162,15 @@ function changeSort(value: string): void {
 function setOrder(value: 'asc' | 'desc'): void {
   library.order = value
   library.fetchTracks()
+}
+
+function playAll(): void {
+  if (library.tracks.length > 0) player.playTrackList(library.sortedTracks, 0)
+}
+
+function shuffleAll(): void {
+  if (library.tracks.length === 0) return
+  player.playTrackList([...library.sortedTracks].sort(() => Math.random() - 0.5), 0)
 }
 
 // Job polling lives in app.vue now — this page only loads the library.
@@ -350,6 +371,18 @@ useHead({ title: 'Library' })
 
       <!-- Library mode: filter the collection -->
       <div v-else key="library">
+        <!-- Play the whole filtered shelf in one tap -->
+        <div v-if="library.tracks.length > 0" class="mb-4 flex items-center gap-2">
+          <Button variant="secondary" size="sm" @click="playAll">
+            <Play class="h-4 w-4 fill-current" />
+            <span class="hidden sm:inline">Play all</span>
+          </Button>
+          <Button variant="secondary" size="sm" @click="shuffleAll">
+            <Shuffle class="h-4 w-4" />
+            <span class="hidden sm:inline">Shuffle</span>
+          </Button>
+        </div>
+
         <!-- loading skeleton -->
         <div
           v-if="library.loading && library.tracks.length === 0"
