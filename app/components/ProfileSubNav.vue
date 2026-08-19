@@ -5,9 +5,9 @@ import type { SegmentedTab } from '~/components/SegmentedTabs.vue'
 const route = useRoute()
 
 const items: SegmentedTab[] = [
-  { label: 'Settings', value: '/profile', icon: Settings },
   { label: 'History', value: '/profile/history', icon: History },
   { label: 'Statistics', value: '/profile/stats', icon: BarChart3 },
+  { label: 'Settings', value: '/profile', icon: Settings },
 ]
 
 // Exact match first (Settings lives on /profile itself), then prefix match.
