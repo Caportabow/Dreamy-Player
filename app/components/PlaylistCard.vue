@@ -2,11 +2,13 @@
 import { ListMusic, MoreHorizontal, Pencil, Trash2 } from 'lucide-vue-next'
 import type { Playlist } from '~/types/music'
 import { useToast } from '~/composables/useToast'
+import { usePlaylistChanges } from '~/composables/usePlaylistChanges'
 
 const props = defineProps<{ playlist: Playlist }>()
 const emit = defineEmits<{ deleted: [id: string]; renamed: [playlist: Playlist] }>()
 
 const toast = useToast()
+const { bump: bumpPlaylistChanges } = usePlaylistChanges()
 const editOpen = ref(false)
 const deleteOpen = ref(false)
 const deleting = ref(false)
@@ -24,6 +26,7 @@ async function rename(): Promise<void> {
       body: { name: next },
     })
     emit('renamed', res.playlist)
+    bumpPlaylistChanges()
     toast.success('Playlist renamed.')
     editOpen.value = false
   } catch (err: any) {
@@ -36,6 +39,7 @@ async function remove(): Promise<void> {
   try {
     await $fetch(`/api/playlists/${props.playlist.id}`, { method: 'DELETE' })
     emit('deleted', props.playlist.id)
+    bumpPlaylistChanges()
     toast.success('Playlist deleted.')
     deleteOpen.value = false
   } catch (err: any) {

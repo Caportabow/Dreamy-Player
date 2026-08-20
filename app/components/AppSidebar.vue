@@ -3,6 +3,7 @@ import { Music2, Plus } from 'lucide-vue-next'
 import { NuxtLink } from '#components'
 import { mediaUrl } from '~/types/music'
 import type { Playlist } from '~/types/music'
+import { usePlaylistChanges } from '~/composables/usePlaylistChanges'
 
 const emit = defineEmits<{ navigate: [] }>()
 
@@ -10,6 +11,7 @@ const route = useRoute()
 const createOpen = ref(false)
 const playlists = ref<Playlist[]>([])
 const loading = ref(false)
+const { playlistChanges } = usePlaylistChanges()
 
 // Shared with the mobile bottom bar — see ~/utils/navigation. The sidebar
 // renders differently (Profile docks at the bottom), so we split the list.
@@ -24,7 +26,11 @@ async function loadPlaylists(): Promise<void> {
   loading.value = true
   try {
     const res = await $fetch<{ playlists: Playlist[] }>('/api/playlists')
-    playlists.value = res.playlists
+    // Oldest first: the library grid stays newest-first, but the sidebar is a
+    // shortcut list where your long-standing shelves belong at the top.
+    playlists.value = [...res.playlists].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    )
   } catch {
     playlists.value = []
   } finally {
@@ -37,7 +43,8 @@ function onCreatePlaylist(): void {
 }
 
 function onCreated(playlist: Playlist): void {
-  playlists.value = [playlist, ...playlists.value.filter((p) => p.id !== playlist.id)]
+  // Newest shelf goes to the bottom, keeping the oldest-first order.
+  playlists.value = [...playlists.value.filter((p) => p.id !== playlist.id), playlist]
   go(`/playlists/${playlist.id}`)
 }
 
@@ -49,13 +56,16 @@ function go(to: string): void {
 onMounted(loadPlaylists)
 
 // Keep the sidebar list fresh after visiting playlist pages (create, rename,
-// delete all happen there).
+// delete all happen there) and after in-place edits elsewhere in the app that
+// never change the route (rename on the playlist page, adding a track from
+// the library).
 watch(
   () => route.path,
   (path) => {
     if (path.startsWith('/playlists')) void loadPlaylists()
   },
 )
+watch(playlistChanges, () => void loadPlaylists())
 </script>
 
 <template>

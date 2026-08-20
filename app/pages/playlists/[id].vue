@@ -3,10 +3,12 @@ import { ChevronDown, ChevronUp, Pencil, Play, Plus, Shuffle, Trash2 } from 'luc
 import type { Playlist, Track } from '~/types/music'
 import { usePlayerStore } from '~/stores/player'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
+import { usePlaylistChanges } from '~/composables/usePlaylistChanges'
 
 const route = useRoute()
 const toast = useToast()
 const player = usePlayerStore()
+const { bump: bumpPlaylistChanges } = usePlaylistChanges()
 
 const playlistId = computed(() => String(route.params.id))
 const playlist = ref<Playlist | null>(null)
@@ -30,6 +32,9 @@ async function load(): Promise<void> {
     )
     playlist.value = res.playlist
     tracks.value = res.tracks
+    // The sidebar mirrors this playlist (name, artwork preview, track count)
+    // but has no idea we changed — nudge it to reload.
+    bumpPlaylistChanges()
   } catch (err: any) {
     toast.error(apiErrorMessage(err, 'This playlist could not be loaded.'))
   } finally {
@@ -77,6 +82,7 @@ async function persistOrder(rollback: Track[]): Promise<void> {
       method: 'PATCH',
       body: { orderedTrackIds: tracks.value.map((t) => t.id) },
     })
+    bumpPlaylistChanges()
     toast.success('Playlist order saved.')
   } catch (err: any) {
     tracks.value = rollback
@@ -101,6 +107,7 @@ async function removeTrack(track: Track): Promise<void> {
   tracks.value = tracks.value.filter((t) => t.id !== track.id)
   try {
     await $fetch(`/api/playlists/${playlistId.value}/tracks/${track.id}`, { method: 'DELETE' })
+    bumpPlaylistChanges()
     toast.success(`Removed from playlist.`)
   } catch (err: any) {
     tracks.value = prev
@@ -123,6 +130,7 @@ async function deletePlaylist(): Promise<void> {
 
 function onTracksAdded(added: Track[]): void {
   tracks.value.push(...added.filter((t) => !tracks.value.some((x) => x.id === t.id)))
+  bumpPlaylistChanges()
 }
 
 onMounted(load)

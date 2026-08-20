@@ -3,6 +3,7 @@ import { ListMusic, Plus } from 'lucide-vue-next'
 import type { Playlist, Track } from '~/types/music'
 import { useAuthStore } from '~/stores/auth'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
+import { usePlaylistChanges } from '~/composables/usePlaylistChanges'
 
 const props = defineProps<{ track: Track | null }>()
 const open = defineModel<boolean>('open', { default: false })
@@ -12,6 +13,7 @@ const toast = useToast()
 const playlists = ref<Playlist[]>([])
 const loading = ref(false)
 const addingId = ref<string | null>(null)
+const { bump: bumpPlaylistChanges } = usePlaylistChanges()
 
 watch(
   [() => props.track, open],
@@ -43,6 +45,8 @@ async function addTo(playlist: Playlist): Promise<void> {
       body: { trackId: props.track.id },
     })
     toast.success(`Added to “${playlist.name}”.`)
+    // The sidebar shows that playlist's track count and artwork preview.
+    bumpPlaylistChanges()
     open.value = false
   } catch (err: any) {
     toast.error(apiErrorMessage(err, 'Could not add the track.'))
