@@ -80,6 +80,7 @@ const VARIANT_PATTERNS: Array<{ label: string; re: RegExp }> = [
   { label: 'best part', re: /\bbest\s*part\b/i },
   { label: 'nightcore', re: /\bnightcore\b/i },
   { label: 'bass boosted', re: /\bbass\s*boost(?:ed)?\b|\bbassboosted\b/i },
+  { label: 'tiktok version', re: /\tiktok\s*version\b/i },
   { label: '8d audio', re: /\b8d(?:\s*audio)?\b/i },
   { label: 'phonk', re: /\bphonk\b/i },
   { label: 'remix', re: /\bremix\b/i },
