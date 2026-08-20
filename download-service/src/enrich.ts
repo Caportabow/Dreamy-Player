@@ -197,11 +197,18 @@ async function resolveEnrichment(
   // never share the original's enrichment.
   if (variantTags.length === 0) {
     const guessKey = normalizeKey(guess.artist ?? '', guess.title)
-    const songHit = songCache.get(guessKey)
-    if (songHit && Date.now() - songHit.at < SONG_CACHE_TTL_MS) {
-      const enrichment = songHit.enrichment
-      enrichCache.set(video.url, { at: Date.now(), enrichment })
-      return enrichment
+    // Reversed-title uploads ("Loser - Tame Impala" = Title - Artist) parse
+    // into the wrong order; check the swapped key too, so a song matched
+    // under its canonical order is still reused.
+    const swappedKey = normalizeKey(guess.title, guess.artist ?? '')
+    const keys = guessKey === swappedKey ? [guessKey] : [guessKey, swappedKey]
+    for (const key of keys) {
+      const songHit = songCache.get(key)
+      if (songHit && Date.now() - songHit.at < SONG_CACHE_TTL_MS) {
+        const enrichment = songHit.enrichment
+        enrichCache.set(video.url, { at: Date.now(), enrichment })
+        return enrichment
+      }
     }
   }
 
@@ -265,39 +272,71 @@ async function resolveEnrichment(
 
 /**
  * Normalize the top results, attach cover art and previews, and collapse
- * duplicate uploads of the same song. One lookup supplies the metadata,
- * artwork, preview, and dedupe key at once.
+ * duplicate uploads of the same song.
  *
- * The per-video lookups are resolved concurrently: the results are
- * independent, and overlapping their network latency shaves seconds off a
- * search. The global iTunes throttle (a token bucket at ~20 calls/min) still
- * paces every call, so Apple's rate limit is untouched.
+ * Duplicate uploads are grouped BEFORE the expensive part: a search often
+ * returns the same track several times (official upload, Topic channel,
+ * re-uploads, reversed-title copies), and one iTunes lookup can serve the
+ * whole group — members adopt the same canonical metadata, which also makes
+ * the final dedupe collapse them into a single result. Groups resolve
+ * concurrently; the global iTunes throttle (a token bucket at ~20 calls/min)
+ * still paces every call, so Apple's rate limit is untouched.
  */
 export async function enrichResults(results: VideoInfo[]): Promise<EnrichedResult[]> {
   const candidates = results.slice(0, ENRICH_LIMIT)
   if (candidates.length === 0) return []
 
-  const normalized = await Promise.all(
-    candidates.map(async (video) => {
-      // Enrichment is best-effort; a single failure must never sink the whole
-      // search (the result then just falls back to its raw YouTube metadata).
-      const normalization = await resolveEnrichment(video).catch(() => null)
-      return { video, normalization }
+  const groups = new Map<string, VideoInfo[]>()
+  for (const video of candidates) {
+    // Variants (slowed, sped up, "best part", …) are their own track — their
+    // tags make them independent, so each is a singleton group.
+    const key =
+      extractVariantTags(video.title).length > 0
+        ? `variant:${video.url}`
+        : symmetricSongKey(video)
+    const group = groups.get(key)
+    if (group) group.push(video)
+    else groups.set(key, [video])
+  }
+
+  // Resolve one lookup per group, trying each member's guess until one
+  // matches: the first upload in YouTube order is usually right, but a
+  // reversed-title copy ("Loser - Tame Impala" = Title - Artist) may be the
+  // only one that parses correctly. Members that never resolve keep their raw
+  // metadata and stay visible as separate uploads.
+  const byKey = new Map<string, Enrichment | null>()
+  await Promise.all(
+    [...groups.entries()].map(async ([key, group]) => {
+      for (const video of group) {
+        const enrichment = await resolveEnrichment(video).catch(() => null)
+        if (enrichment !== null) {
+          byKey.set(key, enrichment)
+          break
+        }
+      }
+      if (!byKey.has(key)) byKey.set(key, null)
     }),
   )
 
   // Keep the results in their original order — dedupe below preserves the
   // first upload of each song, so display order stays stable across searches.
-  const enriched: EnrichedResult[] = normalized.map(({ video, normalization }) => ({
-    ...video,
-    title: normalization?.title || video.title,
-    artist: normalization?.artist || video.artist,
-    album: normalization?.album ?? null,
-    artworkUrl: normalization?.artworkUrl ?? null,
-    previewUrl: normalization?.previewUrl ?? null,
-    itunesId: normalization?.itunesId ?? null,
-    matched: normalization !== null,
-  }))
+  const enriched: EnrichedResult[] = candidates.map((video) => {
+    const key =
+      extractVariantTags(video.title).length > 0
+        ? `variant:${video.url}`
+        : symmetricSongKey(video)
+    const normalization = byKey.get(key) ?? null
+    return {
+      ...video,
+      title: normalization?.title || video.title,
+      artist: normalization?.artist || video.artist,
+      album: normalization?.album ?? null,
+      artworkUrl: normalization?.artworkUrl ?? null,
+      previewUrl: normalization?.previewUrl ?? null,
+      itunesId: normalization?.itunesId ?? null,
+      matched: normalization !== null,
+    }
+  })
 
   // Collapse duplicate uploads of the same song into a single result.
   // iTunes gives a stable key; fall back to normalized title + artist.
@@ -318,6 +357,18 @@ export async function resolveEnrichmentForDownload(
   raw?: any,
 ): Promise<Enrichment | null> {
   return resolveEnrichment(video, raw)
+}
+
+/**
+ * An order-insensitive key for grouping uploads of the same song: "Loser" by
+ * Tame Impala groups with "Loser - Tame Impala (…)" even though the latter
+ * parses as title-first. Built from the normalized title/artist pair.
+ */
+function symmetricSongKey(video: VideoInfo): string {
+  const guess = guessArtistTitle(video)
+  const forward = normalizeKey(guess.artist ?? '', guess.title)
+  const backward = normalizeKey(guess.title, guess.artist ?? '')
+  return forward < backward ? `${forward} || ${backward}` : `${backward} || ${forward}`
 }
 
 function normalizeKey(artist: string, title: string): string {
