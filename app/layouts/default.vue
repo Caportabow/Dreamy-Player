@@ -16,17 +16,15 @@ const auth = useAuthStore()
     </aside>
 
     <!-- Mobile top bar (signed-in users only): the bottom bar handles
-         navigation, so this carries the brand on the left and your profile
-         (avatar + name + username) on the right. -->
+         navigation, so this just carries the brand. -->
     <header
       v-if="auth.isSignedIn"
-      class="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-3 backdrop-blur-xl lg:hidden"
+      class="sticky top-0 z-30 flex items-center justify-center gap-3 px-4 py-3 backdrop-blur-xl lg:hidden"
     >
-      <NuxtLink to="/" class="flex shrink-0 items-center gap-2.5">
+      <NuxtLink to="/" class="flex items-center gap-2.5">
         <AppLogo :size="30" />
         <span class="font-display text-lg font-semibold text-cream">Dreamy</span>
       </NuxtLink>
-      <UserNavChip compact class="max-w-[52%]" />
     </header>
 
     <!-- Main content -->
