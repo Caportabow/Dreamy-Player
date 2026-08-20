@@ -160,7 +160,7 @@ useHead({ title: 'Add song' })
 
 <template>
   <div class="animate-fade-in">
-    <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="flex items-center gap-3">
         <div
           class="flex h-12 w-12 shrink-0 items-center justify-center rounded-pillow-lg bg-gradient-to-br from-plum-600/60 to-violet-700/40 shadow-glow"
@@ -173,35 +173,68 @@ useHead({ title: 'Add song' })
         </div>
       </div>
 
-      <div class="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
-        <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
-        <Input
-          id="add-search"
-          v-model="searchInput"
-          type="search"
-          placeholder="Search for a song to add…"
-          class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
-          aria-label="Search for songs to add"
-        />
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="opacity-0 scale-50"
-          enter-to-class="opacity-100 scale-100"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 scale-100"
-          leave-to-class="opacity-0 scale-50"
-        >
-          <button
-            v-if="searchInput"
-            type="button"
-            class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
-            aria-label="Clear search"
-            title="Clear search"
-            @click="clearSearch"
+      <!-- Search column: recent searches sit right under the bar, sharing its
+           right-hand position. -->
+      <div class="flex min-w-0 flex-col items-end gap-2 sm:w-72 sm:flex-none">
+        <div class="relative w-full">
+          <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-faint" />
+          <Input
+            id="add-search"
+            v-model="searchInput"
+            type="search"
+            placeholder="Search for a song to add…"
+            class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
+            aria-label="Search for songs to add"
+          />
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 scale-50"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-50"
           >
-            <X class="h-3.5 w-3.5" />
+            <button
+              v-if="searchInput"
+              type="button"
+              class="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
+              aria-label="Clear search"
+              title="Clear search"
+              @click="clearSearch"
+            >
+              <X class="h-3.5 w-3.5" />
+            </button>
+          </Transition>
+        </div>
+
+        <div
+          v-if="recentSearches.length > 0 && !searchInput.trim()"
+          class="flex max-w-full items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <span class="flex shrink-0 items-center gap-1 text-xs text-cream-faint">
+            <History class="h-3 w-3" />
+            Recent
+          </span>
+          <button
+            v-for="q in recentSearches"
+            :key="q"
+            type="button"
+            class="shrink-0 rounded-full border border-white/6 bg-white/4 px-3 py-1 text-xs text-cream-dim transition-colors hover:border-lavender-400/30 hover:bg-lavender-400/10 hover:text-cream"
+            :title="`Search again for “${q}”`"
+            @click="runRecentSearch(q)"
+          >
+            {{ q }}
           </button>
-        </Transition>
+          <button
+            type="button"
+            class="shrink-0 rounded-full p-1 text-cream-faint transition-colors hover:bg-white/6 hover:text-cream"
+            aria-label="Clear recent searches"
+            :title="'Clear recent searches'"
+            @click="clearRecentSearches"
+          >
+            <X class="h-3 w-3" />
+          </button>
+        </div>
       </div>
     </header>
 
@@ -212,33 +245,6 @@ useHead({ title: 'Add song' })
         title="Search to add songs"
         description="Type above to find new songs — preview them and add them in one tap."
       />
-
-      <!-- quick re-run of earlier searches -->
-      <div v-if="recentSearches.length > 0" class="mt-8">
-        <div class="mb-3 flex items-center justify-between">
-          <p class="text-xs uppercase tracking-wider text-cream-faint">Recent searches</p>
-          <button
-            type="button"
-            class="text-xs text-cream-faint transition-colors hover:text-cream"
-            @click="clearRecentSearches"
-          >
-            Clear
-          </button>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="q in recentSearches"
-            :key="q"
-            type="button"
-            class="flex items-center gap-1.5 rounded-full bg-white/5 px-3.5 py-1.5 text-sm text-cream-dim transition-colors hover:bg-lavender-400/15 hover:text-lavender-100"
-            :title="`Search again for “${q}”`"
-            @click="runRecentSearch(q)"
-          >
-            <History class="h-3.5 w-3.5" />
-            {{ q }}
-          </button>
-        </div>
-      </div>
     </template>
 
     <template v-else>
