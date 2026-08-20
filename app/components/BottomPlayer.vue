@@ -54,8 +54,8 @@ function openExpanded(): void {
                 <Tooltip content-class="z-[70]">
                   <button
                     type="button"
-                    class="rounded-full p-2 text-cream-muted transition-all hover:bg-white/5 hover:text-cream"
-                    :class="{ 'text-lavender-300': player.shuffle }"
+                    class="rounded-full p-2 transition-all"
+                    :class="player.shuffle ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-faint hover:bg-white/5 hover:text-cream'"
                     :aria-label="player.shuffle ? 'Shuffle off' : 'Shuffle on'"
                     @click="player.toggleShuffle()"
                   >
@@ -95,8 +95,8 @@ function openExpanded(): void {
                 <Tooltip content-class="z-[70]">
                   <button
                     type="button"
-                    class="rounded-full p-2 text-cream-muted transition-all hover:bg-white/5 hover:text-cream"
-                    :class="{ 'text-lavender-300': repeatActive }"
+                    class="rounded-full p-2 transition-all"
+                    :class="repeatActive ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-faint hover:bg-white/5 hover:text-cream'"
                     :aria-label="`Repeat: ${player.repeatMode}`"
                     @click="player.cycleRepeat()"
                   >
@@ -119,8 +119,8 @@ function openExpanded(): void {
                 />
                 <button
                   type="button"
-                  class="flex items-center gap-2 rounded-full px-4 py-2 text-xs text-cream-dim transition-colors hover:bg-white/6 hover:text-cream"
-                  :class="{ 'text-lavender-200': queueOpen }"
+                  class="flex items-center gap-2 rounded-full px-4 py-2 text-xs transition-colors"
+                  :class="queueOpen ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-dim hover:bg-white/6 hover:text-cream'"
                   @click="queueOpen = !queueOpen"
                 >
                   <ListMusic class="h-4 w-4" />

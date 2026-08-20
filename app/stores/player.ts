@@ -495,7 +495,7 @@ export const usePlayerStore = defineStore('player', () => {
       return
     }
     queue.value.push(toQueueItem(track))
-    if (shuffle.value) rebuildOrder()
+    rebuildOrder()
   }
 
   function playNext(track: Track): void {
@@ -506,7 +506,7 @@ export const usePlayerStore = defineStore('player', () => {
     const insertAt = currentIndex.value + 1
     queue.value.splice(insertAt, 0, toQueueItem(track))
     if (currentIndex.value >= insertAt) currentIndex.value++
-    if (shuffle.value) rebuildOrder()
+    rebuildOrder()
   }
 
   function removeFromQueue(index: number): void {
@@ -529,7 +529,7 @@ export const usePlayerStore = defineStore('player', () => {
       const item = current.value
       if (item) loadTrack(item, true)
     }
-    if (shuffle.value) rebuildOrder()
+    rebuildOrder()
   }
 
   function reorderQueue(from: number, to: number): void {
@@ -539,7 +539,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (from === currentIndex.value) currentIndex.value = to
     else if (from < currentIndex.value && to >= currentIndex.value) currentIndex.value--
     else if (from > currentIndex.value && to <= currentIndex.value) currentIndex.value++
-    if (shuffle.value) rebuildOrder()
+    rebuildOrder()
   }
 
   function clearQueue(): void {

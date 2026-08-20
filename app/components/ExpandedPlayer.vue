@@ -134,8 +134,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
             <div class="flex items-center justify-center gap-4 lg:justify-between">
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-full text-cream-muted transition-all hover:bg-white/6 hover:text-cream"
-                :class="{ 'text-lavender-300': player.shuffle }"
+                class="flex h-11 w-11 items-center justify-center rounded-full transition-all"
+                :class="player.shuffle ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-muted hover:bg-white/6 hover:text-cream'"
                 :aria-label="player.shuffle ? 'Shuffle off' : 'Shuffle on'"
                 @click="player.toggleShuffle()"
               >
@@ -172,8 +172,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-full text-cream-muted transition-all hover:bg-white/6 hover:text-cream"
-                :class="{ 'text-lavender-300': player.repeatMode !== 'off' }"
+                class="flex h-11 w-11 items-center justify-center rounded-full transition-all"
+                :class="player.repeatMode !== 'off' ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-muted hover:bg-white/6 hover:text-cream'"
                 :aria-label="`Repeat: ${player.repeatMode}`"
                 @click="player.cycleRepeat()"
               >
@@ -191,8 +191,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               />
               <button
                 type="button"
-                class="flex items-center gap-2 rounded-full px-4 py-2 text-xs text-cream-dim transition-colors hover:bg-white/6 hover:text-cream"
-                :class="{ 'text-lavender-200': queueOpen }"
+                class="flex items-center gap-2 rounded-full px-4 py-2 text-xs transition-colors"
+                :class="queueOpen ? 'bg-lavender-400/15 text-lavender-200' : 'text-cream-dim hover:bg-white/6 hover:text-cream'"
                 @click="queueOpen = !queueOpen"
               >
                 <ListMusic class="h-4 w-4" />
