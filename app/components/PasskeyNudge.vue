@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Fingerprint, X } from 'lucide-vue-next'
-import { defaultPasskeyName, usePasskeys } from '~/composables/usePasskeys'
+import { defaultPasskeyName, usePasskeys, webauthnSupport } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 import { useAuthStore } from '~/stores/auth'
 
@@ -25,6 +25,11 @@ const adding = ref(false)
 async function load(): Promise<void> {
   const username = auth.user?.username
   if (!username) return
+  // No point suggesting a passkey the browser cannot create.
+  if (!webauthnSupport().supported) {
+    show.value = false
+    return
+  }
   try {
     await passkeysApi.listPasskeys()
     show.value = passkeysApi.passkeyCount.value === 0 && !isDismissed(username)
@@ -38,6 +43,10 @@ async function load(): Promise<void> {
 function evaluate(): void {
   const username = auth.user?.username
   if (!username) {
+    show.value = false
+    return
+  }
+  if (!webauthnSupport().supported) {
     show.value = false
     return
   }

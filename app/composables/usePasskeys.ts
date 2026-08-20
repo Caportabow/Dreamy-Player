@@ -5,6 +5,41 @@ import type {
 import type { PasskeyInfo } from '~/types/music'
 import { useAuthStore } from '~/stores/auth'
 
+/** Why WebAuthn may be unavailable in the current browser context. */
+export type WebAuthnSupport =
+  | { supported: true; reason?: undefined }
+  | { supported: false; reason: 'insecure-context' | 'browser' }
+
+/**
+ * Whether the current browser can run WebAuthn ceremonies. WebAuthn is only
+ * exposed in secure contexts (HTTPS or localhost) and in browsers with
+ * PublicKeyCredential support. The SSR pass reports "unsupported", so callers
+ * must re-check on the client (e.g. in onMounted) before rendering passkey UI.
+ */
+export function webauthnSupport(): WebAuthnSupport {
+  if (import.meta.server) return { supported: false, reason: 'browser' }
+  if (!window.isSecureContext) return { supported: false, reason: 'insecure-context' }
+  if (typeof window.PublicKeyCredential !== 'function') return { supported: false, reason: 'browser' }
+  return { supported: true }
+}
+
+/** A short, actionable explanation of why passkeys are unavailable. */
+export function webauthnUnsupportedMessage(): string {
+  const state = webauthnSupport()
+  if (state.supported) return ''
+  return state.reason === 'insecure-context'
+    ? 'Passkeys need a secure connection. Open Dreamy over HTTPS (or via localhost) to use them.'
+    : 'This browser does not support passkeys. Try a current version of Chrome, Edge, Safari, or Firefox.'
+}
+
+/** Replaces the library's bare error with the actionable explanation. */
+function translateWebAuthnError(err: any): Error {
+  if (err?.message === 'WebAuthn is not supported in this browser') {
+    return new Error(webauthnUnsupportedMessage())
+  }
+  return err
+}
+
 /** A friendly, stable-ish name for a newly created passkey. */
 export function defaultPasskeyName(): string {
   const ua = navigator.userAgent
@@ -33,12 +68,19 @@ export function usePasskeys() {
   const auth = useAuthStore()
 
   async function registerPasskey(name?: string): Promise<void> {
+    const support = webauthnSupport()
+    if (!support.supported) throw new Error(webauthnUnsupportedMessage())
     const options = await $fetch<PublicKeyCredentialCreationOptionsJSON>(
       '/api/auth/passkey/register/options',
       { method: 'POST' },
     )
     const { startRegistration } = await import('@simplewebauthn/browser')
-    const response = await startRegistration({ optionsJSON: options })
+    let response
+    try {
+      response = await startRegistration({ optionsJSON: options })
+    } catch (err: any) {
+      throw translateWebAuthnError(err)
+    }
     await $fetch('/api/auth/passkey/register/verify', {
       method: 'POST',
       body: { ...response, name },
@@ -49,12 +91,19 @@ export function usePasskeys() {
   }
 
   async function signInWithPasskey(username?: string): Promise<void> {
+    const support = webauthnSupport()
+    if (!support.supported) throw new Error(webauthnUnsupportedMessage())
     const options = await $fetch<PublicKeyCredentialRequestOptionsJSON>(
       '/api/auth/passkey/login/options',
       { method: 'POST', body: { username } },
     )
     const { startAuthentication } = await import('@simplewebauthn/browser')
-    const response = await startAuthentication({ optionsJSON: options })
+    let response
+    try {
+      response = await startAuthentication({ optionsJSON: options })
+    } catch (err: any) {
+      throw translateWebAuthnError(err)
+    }
     const res = await $fetch<{ user: AuthUser }>('/api/auth/passkey/login/verify', {
       method: 'POST',
       body: response,

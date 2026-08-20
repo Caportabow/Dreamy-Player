@@ -3,7 +3,7 @@ import { AlertTriangle, Camera, Check, Fingerprint, KeyRound, LogOut, Pencil, Pl
 import type { AuthUser, PasskeyInfo } from '~/types/music'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
-import { defaultPasskeyName, usePasskeys } from '~/composables/usePasskeys'
+import { defaultPasskeyName, usePasskeys, webauthnSupport, webauthnUnsupportedMessage, type WebAuthnSupport } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 import { mediaUrl } from '~/types/music'
 
@@ -31,6 +31,13 @@ const passkeys = ref<PasskeyInfo[]>([])
 const passkeysLoading = ref(false)
 const addingPasskey = ref(false)
 const removingPasskey = ref<string | null>(null)
+
+// Passkeys need a secure context + a WebAuthn-capable browser. Evaluate on the
+// client so the SSR render never flashes a wrong "unsupported" state.
+const webauthn = ref<WebAuthnSupport | null>(null)
+onMounted(() => {
+  webauthn.value = webauthnSupport()
+})
 
 // --- Delete account ---
 const deleteOpen = ref(false)
@@ -365,12 +372,15 @@ useHead({ title: 'Profile' })
             <Fingerprint class="h-4 w-4 text-lavender-300" />
             <h2 class="text-sm font-medium text-cream-muted">Passkeys</h2>
           </div>
-          <Button type="button" size="sm" :disabled="addingPasskey" @click="addPasskey">
+          <Button type="button" size="sm" :disabled="addingPasskey || !webauthn?.supported" @click="addPasskey">
             <Plus class="h-4 w-4" />
             {{ addingPasskey ? 'Waiting…' : 'Add passkey' }}
           </Button>
         </div>
-        <p class="mb-4 text-sm text-cream-dim">
+        <p v-if="webauthn && !webauthn.supported" class="mb-4 text-sm text-cream-dim">
+          {{ webauthnUnsupportedMessage() }}
+        </p>
+        <p v-else class="mb-4 text-sm text-cream-dim">
           Sign in with your face, fingerprint, or device — no password needed.
         </p>
 

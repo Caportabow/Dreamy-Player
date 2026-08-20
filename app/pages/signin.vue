@@ -2,7 +2,7 @@
 import { Fingerprint, LogIn } from 'lucide-vue-next'
 import { useAuthStore } from '~/stores/auth'
 import { usePlayerStore } from '~/stores/player'
-import { usePasskeys } from '~/composables/usePasskeys'
+import { usePasskeys, webauthnSupport, webauthnUnsupportedMessage, type WebAuthnSupport } from '~/composables/usePasskeys'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
 
 const route = useRoute()
@@ -16,6 +16,13 @@ const password = ref('')
 const loading = ref(false)
 const passkeyLoading = ref(false)
 const error = ref<string | null>(null)
+
+// Passkeys need a secure context + a WebAuthn-capable browser. Evaluate on the
+// client so the SSR render never flashes a wrong "unsupported" state.
+const webauthn = ref<WebAuthnSupport | null>(null)
+onMounted(() => {
+  webauthn.value = webauthnSupport()
+})
 
 const nextPath = computed(() => (typeof route.query.next === 'string' ? route.query.next : '/'))
 const cameFromGuest = computed(() => route.query.reason === 'guest')
@@ -113,12 +120,15 @@ useHead({ title: 'Sign in' })
           type="button"
           variant="outline"
           size="lg"
-          :disabled="passkeyLoading"
+          :disabled="passkeyLoading || !webauthn?.supported"
           @click="signInWithPasskey"
         >
           <Fingerprint class="h-4 w-4" />
           {{ passkeyLoading ? 'Waiting for your passkey…' : 'Sign in with a passkey' }}
         </Button>
+        <p v-if="webauthn && !webauthn.supported" class="text-center text-xs text-cream-faint">
+          {{ webauthnUnsupportedMessage() }}
+        </p>
       </form>
 
       <p class="mt-6 text-center text-sm text-cream-dim">
