@@ -1,8 +1,14 @@
 <script setup lang="ts">
+import { mediaUrl } from '~/types/music'
+import { useAuthStore } from '~/stores/auth'
+
 const route = useRoute()
+const auth = useAuthStore()
 
 // Shared with the desktop sidebar — see ~/utils/navigation.
 const items = mainNavItems
+
+const avatarUrl = computed(() => mediaUrl(auth.user?.profile?.avatarKey))
 
 function isActive(to: string): boolean {
   return isMainNavActive(route.path, to)
@@ -30,7 +36,14 @@ function isActive(to: string): boolean {
               : ''
           "
         >
-          <component :is="item.icon" class="h-5 w-5" />
+          <!-- The Profile tab wears the user's avatar instead of a generic icon -->
+          <img
+            v-if="item.to === '/profile' && avatarUrl"
+            :src="avatarUrl"
+            :alt="`${auth.displayName} avatar`"
+            class="h-5 w-5 rounded-full object-cover"
+          />
+          <component v-else :is="item.icon" class="h-5 w-5" />
         </span>
         {{ item.label }}
       </NuxtLink>

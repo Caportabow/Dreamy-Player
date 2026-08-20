@@ -14,9 +14,9 @@ const loading = ref(false)
 const { playlistChanges } = usePlaylistChanges()
 
 // Shared with the mobile bottom bar — see ~/utils/navigation. The sidebar
-// renders differently (Profile docks at the bottom), so we split the list.
+// drops the Profile entry: it's shown as a user card docked at the bottom
+// instead of a plain nav button.
 const topNavItems = computed(() => mainNavItems.slice(0, -1))
-const profileNavItems = computed(() => mainNavItems.slice(-1))
 
 function isActive(to: string): boolean {
   return isMainNavActive(route.path, to)
@@ -78,7 +78,7 @@ watch(playlistChanges, () => void loadPlaylists())
       </span>
     </NuxtLink>
 
-    <!-- Primary navigation (Profile is docked separately at the bottom) -->
+    <!-- Primary navigation (your profile card is docked separately below) -->
     <nav class="flex flex-col gap-1" aria-label="Main">
       <div v-for="item in topNavItems" :key="item.to">
         <!-- Playlists gets a small “+” to create a new one in place -->
@@ -158,20 +158,11 @@ watch(playlistChanges, () => void loadPlaylists())
       </div>
     </div>
 
-    <!-- Profile docks at the bottom -->
-    <nav class="mt-3 flex flex-col gap-1 border-t border-white/6 pt-3" aria-label="Account">
-      <button
-        v-for="item in profileNavItems"
-        :key="item.to"
-        type="button"
-        class="nav-item"
-        :class="{ active: isActive(item.to) }"
-        @click="go(item.to)"
-      >
-        <component :is="item.icon" class="nav-icon h-4.5 w-4.5 shrink-0" />
-        <span>{{ item.label }}</span>
-      </button>
-    </nav>
+    <!-- Profile docks at the bottom: avatar, display name, and username in
+         one tappable card instead of a plain "Profile" button. -->
+    <div class="mt-3 border-t border-white/6 pt-3">
+      <UserNavChip :active="isActive('/profile')" @navigate="emit('navigate')" />
+    </div>
 
     <PlaylistCreateDialog v-model:open="createOpen" @created="onCreated" />
   </div>
