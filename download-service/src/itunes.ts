@@ -35,6 +35,9 @@ export interface ItunesMatch {
   previewUrl: string | null
   /** Apple track id — stable key for duplicate detection. */
   trackId: number | null
+  /** Track length in milliseconds (iTunes catalog) — the canonical audio
+   * length, used to pick the real recording among duplicate uploads. */
+  trackTimeMillis: number | null
 }
 
 const cache = new Map<string, { at: number; match: ItunesMatch | null }>()
@@ -139,6 +142,9 @@ function pickBest(data: any, wantedTitle: string, wantedArtist: string | null): 
     artworkUrl: artwork,
     previewUrl: previewUrl || null,
     trackId: Number.isFinite(Number(best.trackId)) ? Number(best.trackId) : null,
+    trackTimeMillis: Number.isFinite(Number(best.trackTimeMillis))
+      ? Number(best.trackTimeMillis)
+      : null,
   }
 }
 

@@ -31,6 +31,9 @@ export interface EnrichedResult extends VideoInfo {
   previewUrl: string | null
   /** Apple track id — stable key used to dedupe the results. */
   itunesId: string | null
+  /** Track length in milliseconds (iTunes catalog) — the canonical audio
+   * length used to pick the real recording among duplicate uploads. */
+  trackTimeMillis: number | null
   /** Whether iTunes had a match (title/artist are canonical when true). */
   matched: boolean
 }
@@ -42,6 +45,8 @@ export interface Enrichment {
   itunesId: string | null
   artworkUrl: string | null
   previewUrl: string | null
+  /** Track length in milliseconds (iTunes catalog); null when unknown. */
+  trackTimeMillis: number | null
 }
 
 const ENRICH_LIMIT = 10
@@ -252,6 +257,7 @@ async function resolveEnrichment(
         itunesId: isVariant ? null : match.trackId !== null ? String(match.trackId) : null,
         artworkUrl: match.artworkUrl,
         previewUrl: isVariant ? null : match.previewUrl,
+        trackTimeMillis: match.trackTimeMillis,
       }
     : null
 
@@ -272,7 +278,8 @@ async function resolveEnrichment(
 
 /**
  * Normalize the top results, attach cover art and previews, and collapse
- * duplicate uploads of the same song.
+ * duplicate uploads of the same song to the upload whose real audio length
+ * matches the iTunes track length (trackTimeMillis) most closely.
  *
  * Duplicate uploads are grouped BEFORE the expensive part: a search often
  * returns the same track several times (official upload, Topic channel,
@@ -334,19 +341,42 @@ export async function enrichResults(results: VideoInfo[]): Promise<EnrichedResul
       artworkUrl: normalization?.artworkUrl ?? null,
       previewUrl: normalization?.previewUrl ?? null,
       itunesId: normalization?.itunesId ?? null,
+      trackTimeMillis: normalization?.trackTimeMillis ?? null,
       matched: normalization !== null,
     }
   })
 
-  // Collapse duplicate uploads of the same song into a single result.
-  // iTunes gives a stable key; fall back to normalized title + artist.
-  const seen = new Set<string>()
-  const unique: EnrichedResult[] = []
+  // Collapse duplicate uploads of the same song into a single result — keeping
+  // the upload whose real audio length (video duration) comes closest to the
+  // iTunes track length (trackTimeMillis): the actual studio recording, not a
+  // live take, a sped-up re-upload, or a shortened edit. iTunes gives a stable
+  // key; fall back to normalized title + artist. When no canonical length is
+  // known (no iTunes match, or the track time is missing), the first upload in
+  // search order wins, as before.
+  const bestByKey = new Map<string, EnrichedResult>()
   for (const result of enriched) {
     const key = result.itunesId ?? normalizeKey(result.artist, result.title)
-    if (seen.has(key)) continue
-    seen.add(key)
-    unique.push(result)
+    const current = bestByKey.get(key)
+    if (!current) {
+      bestByKey.set(key, result)
+      continue
+    }
+    const trackTimeS = current.trackTimeMillis != null ? current.trackTimeMillis / 1000 : null
+    if (trackTimeS === null) continue
+    const diff = (d: number | null): number =>
+      d === null ? Number.POSITIVE_INFINITY : Math.abs(d - trackTimeS)
+    if (diff(result.duration) < diff(current.duration)) bestByKey.set(key, result)
+  }
+
+  // Emit each song's winning upload at its first position, so the display
+  // order stays stable across searches.
+  const unique: EnrichedResult[] = []
+  const emitted = new Set<string>()
+  for (const result of enriched) {
+    const key = result.itunesId ?? normalizeKey(result.artist, result.title)
+    if (emitted.has(key)) continue
+    emitted.add(key)
+    unique.push(bestByKey.get(key)!)
   }
   return unique
 }
