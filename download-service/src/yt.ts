@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -286,48 +286,140 @@ export async function fetchMetadata(
 /**
  * Player clients to try for YouTube media downloads, in order.
  *
- * yt-dlp's default multi-client mode can resolve media URLs that YouTube
- * answers with HTTP 403 from datacenter IPs; pinning a single client (with
- * fallbacks) avoids that.
+ * Why this order:
+ * - The embedded clients (web_embedded / tv_embedded) are served the UNMUTED
+ *   format universe for claim-restricted videos — the normal clients only see
+ *   muted/partial audio streams (or nothing) for those, and DASH media URLs
+ *   from the multi-client default often answer HTTP 403 from datacenter IPs.
+ *   They also download fine here.
+ * - web/android/tv stay as fallbacks: they work for ordinary videos and cover
+ *   cases where a video has embedding disabled.
+ *
+ * The worker tries each in turn, advancing on download failure or when the
+ * conversion stage rejects the stream (see processJob).
  */
-const YOUTUBE_CLIENTS = ['web', 'android', 'tv']
+export const YOUTUBE_CLIENTS = ['web_embedded', 'tv_embedded', 'web', 'android', 'tv'] as const
 
-/** Download the best available audio stream into outDir. Returns the file path. */
-export async function downloadAudio(url: string, outDir: string, videoId: string): Promise<string> {
-  const template = `${outDir}/${videoId}.%(ext)s`
-  let lastErr: any = null
-  for (const client of YOUTUBE_CLIENTS) {
-    try {
-      await run(
-        [
-          '--extractor-args', `youtube:player_client=${client}`,
-          '-f', 'bestaudio/best',
-          '-o', template,
-          '--no-playlist',
-          '--no-part',
-          '--no-mtime',
-          '--socket-timeout', '20',
-          // YouTube audio streams are DASH-fragmented; fetch fragments in
-          // parallel instead of serially.
-          '--concurrent-fragments', '8',
-          '--no-ignore-errors',
-          url,
-        ],
-        240_000,
-      )
-      const fs = await import('node:fs')
-      const files = fs.readdirSync(outDir).filter((f) => f.startsWith(videoId))
-      if (files.length > 0) return `${outDir}/${files[0]!}`
-      lastErr = new YtError('yt-dlp finished but produced no audio file.', 'download_failure')
-    } catch (err: any) {
-      lastErr = err
-      // Try the next client; YouTube blocks some clients from datacenter IPs.
+export type YoutubeClient = (typeof YOUTUBE_CLIENTS)[number]
+
+/** Fraction (0..1) of a download a single yt-dlp progress line represents. */
+function parseDownloadFraction(line: string): number | null {
+  // "[download]  45.3% of 11.30MiB at 1.25MiB/s ETA 00:05" (and the
+  // fragment-level variants during DASH downloads). Taking the max across
+  // lines keeps the estimate monotonic.
+  const pct = /\[download\]\s+(\d+(?:\.\d+)?)%/.exec(line)
+  if (pct) {
+    const value = Number(pct[1])
+    if (Number.isFinite(value)) return Math.min(value / 100, 1)
+    return null
+  }
+  // No percentage (unknown total size): "[download] Downloading item 3 of 8"
+  // gives a rough fraction; item N is in progress, so (N-1)/M is its floor.
+  const frag = /\[download\]\s+Downloading item\s+(\d+)\s+of\s+(\d+)/i.exec(line)
+  if (frag) {
+    const n = Number(frag[1])
+    const m = Number(frag[2])
+    if (Number.isFinite(n) && Number.isFinite(m) && m > 0) {
+      return Math.min((n - 1) / m, 1)
     }
   }
+  return null
+}
 
-  const stderr: string = lastErr?.stderr || lastErr?.message || ''
-  if (/unavailable|removed|private/i.test(stderr)) {
-    throw new YtError('This video is unavailable.', 'video_unavailable')
+/**
+ * Download the best available audio stream into outDir using a single player
+ * client. Returns the file path; throws YtError when this client fails.
+ * `onProgress` receives the download fraction (0..1) as yt-dlp reports it.
+ */
+export async function downloadAudio(
+  url: string,
+  outDir: string,
+  videoId: string,
+  client: YoutubeClient,
+  onProgress?: (fraction: number) => void,
+): Promise<string> {
+  // Per-client filename so parallel attempts never collide; the failed
+  // client's file is cleaned up between retries.
+  const template = `${outDir}/${client}-${videoId}.%(ext)s`
+  const args = [
+    // Standard flags (mirrors `run`, plus --newline so progress lines are
+    // parseable instead of overwriting each other with \r).
+    '--js-runtimes', 'deno',
+    '--socket-timeout', SOCKET_TIMEOUT,
+    '--no-warnings',
+    '--newline',
+    '--extractor-args', `youtube:player_client=${client}`,
+    '-f', 'bestaudio/best',
+    '-o', template,
+    '--no-playlist',
+    '--no-part',
+    '--no-mtime',
+    '--socket-timeout', '20',
+    // YouTube audio streams are DASH-fragmented; fetch fragments in
+    // parallel instead of serially.
+    '--concurrent-fragments', '8',
+    '--no-ignore-errors',
+    url,
+  ]
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(YTDLP, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      // Mirror execFile's kill timeout for a hung process.
+      let timedOut = false
+      const killTimer = setTimeout(() => {
+        timedOut = true
+        child.kill('SIGKILL')
+      }, 240_000)
+      killTimer.unref?.()
+      let stderr = ''
+      let lineBuffer = ''
+      let maxFraction = 0
+
+      child.stderr.setEncoding('utf8')
+      child.stderr.on('data', (chunk: string) => {
+        lineBuffer += chunk
+        let nl: number
+        while ((nl = lineBuffer.indexOf('\n')) !== -1) {
+          const line = lineBuffer.slice(0, nl)
+          lineBuffer = lineBuffer.slice(nl + 1)
+          stderr = (stderr + line + '\n').slice(-8192)
+          const fraction = parseDownloadFraction(line)
+          if (fraction !== null && fraction > maxFraction) {
+            maxFraction = fraction
+            onProgress?.(maxFraction)
+          }
+        }
+      })
+      child.on('error', (err) => {
+        clearTimeout(killTimer)
+        reject(err)
+      })
+      child.on('close', (code) => {
+        clearTimeout(killTimer)
+        if (timedOut) {
+          reject(Object.assign(new Error('yt-dlp download timed out.'), { stderr }))
+          return
+        }
+        if (code === 0) {
+          resolve()
+        } else {
+          reject(Object.assign(new Error(`yt-dlp exited with code ${code}`), { stderr }))
+        }
+      })
+    })
+    const fs = await import('node:fs')
+    const files = fs.readdirSync(outDir).filter((f) => f.startsWith(`${client}-${videoId}`))
+    if (files.length > 0) {
+      console.log(`[worker] audio downloaded via player client ${client}`)
+      return `${outDir}/${files[0]!}`
+    }
+    throw new YtError('yt-dlp finished but produced no audio file.', 'download_failure')
+  } catch (err: any) {
+    if (err instanceof YtError) throw err
+    const stderr: string = err?.stderr || err?.message || ''
+    if (/unavailable|removed|private/i.test(stderr)) {
+      throw new YtError('This video is unavailable.', 'video_unavailable')
+    }
+    throw new YtError('The audio could not be downloaded: ' + stderr.slice(0, 300), 'download_failure')
   }
-  throw new YtError('The audio could not be downloaded: ' + stderr.slice(0, 300), 'download_failure')
 }

@@ -17,6 +17,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const hasMore = ref(false)
   const loadingMore = ref(false)
   const jobs = ref<DownloadJob[]>([])
+  /** Downloads that failed while this session was watching, newest first. */
+  const failedJobs = ref<DownloadJob[]>([])
   const loadingJobs = ref(false)
   const creating = ref(false)
   /** Title of the most recently completed job — lets the UI show a brief "done" flash. */
@@ -134,13 +136,14 @@ export const useDownloadsStore = defineStore('downloads', () => {
   async function fetchJobs(): Promise<void> {
     if (!auth.isSignedIn) {
       jobs.value = []
+      failedJobs.value = []
       return
     }
     loadingJobs.value = true
     try {
       const res = await $fetch<{ jobs: DownloadJob[] }>('/api/downloads', { query: { limit: 20 } })
       jobs.value = res.jobs
-      detectCompletions(res.jobs)
+      detectJobChanges(res.jobs)
     } catch {
       // silent — polling will retry
     } finally {
@@ -148,19 +151,24 @@ export const useDownloadsStore = defineStore('downloads', () => {
     }
   }
 
-  // Track completions *since the store was loaded*. On the very first fetch
-  // (e.g. a page refresh) already-finished jobs are recorded silently, so the
-  // "Added to your library" flash only fires for downloads that actually
-  // completed while this session was watching.
+  // Track terminal states *since the store was loaded*. On the very first
+  // fetch (e.g. a page refresh) already-finished jobs are recorded silently,
+  // so the "Added to your library" flash and failure toasts only fire for
+  // jobs that actually finished while this session was watching.
   let primed = false
+  let lastFailedIds = new Set<string>()
 
-  function detectCompletions(next: DownloadJob[]): void {
+  function detectJobChanges(next: DownloadJob[]): void {
     const completedNow = new Set(
       next.filter((j) => j.status === 'complete').map((j) => j.id),
+    )
+    const failedNow = new Set(
+      next.filter((j) => j.status === 'failed').map((j) => j.id),
     )
     if (!primed) {
       primed = true
       lastCompleteIds = completedNow
+      lastFailedIds = failedNow
       return
     }
     const freshlyComplete = [...completedNow].filter((id) => !lastCompleteIds.has(id))
@@ -176,6 +184,24 @@ export const useDownloadsStore = defineStore('downloads', () => {
       }
     }
     lastCompleteIds = completedNow
+
+    // A download that failed while this session was watching gets its
+    // friendly error (e.g. "The downloaded audio is silent or unreadable —
+    // please try downloading this track again.") shown on the progress card
+    // (with a dismiss button); the job row alone would otherwise swallow it
+    // silently.
+    const freshlyFailed = [...failedNow].filter((id) => !lastFailedIds.has(id))
+    lastFailedIds = failedNow
+    for (const id of freshlyFailed) {
+      const job = next.find((j) => j.id === id)
+      if (job) {
+        failedJobs.value = [job, ...failedJobs.value.filter((f) => f.id !== job.id)].slice(0, 3)
+      }
+    }
+  }
+
+  function dismissFailed(id: string): void {
+    failedJobs.value = failedJobs.value.filter((j) => j.id !== id)
   }
 
   function ensurePolling(): void {
@@ -211,6 +237,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
     hasMore,
     loadingMore,
     jobs,
+    failedJobs,
+    dismissFailed,
     loadingJobs,
     creating,
     completedTitle,

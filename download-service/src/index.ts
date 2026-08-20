@@ -1,11 +1,19 @@
 import express from 'express'
 import type { Request, Response, NextFunction } from 'express'
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { env } from './env'
-import { downloadAudio, fetchMetadata, MAX_SEARCH_PAGES, search, YtError, type FullMetadata } from './yt'
+import {
+  downloadAudio,
+  fetchMetadata,
+  MAX_SEARCH_PAGES,
+  search,
+  YOUTUBE_CLIENTS,
+  YtError,
+  type FullMetadata,
+} from './yt'
 import { toMp3, toWebpSquare } from './ffmpeg'
 import { ensureBuckets, uploadFile } from './storage'
 import { reportComplete, reportFailure, reportProgress } from './nuxt'
@@ -141,25 +149,81 @@ async function processJob(input: { jobId: string; sourceUrl: string; artworkUrl:
 
     dir = await mkdtemp(path.join(env.tempDir, 'job-'))
 
+    // Real progress: yt-dlp's byte percentage drives the download band, the
+    // ffmpeg encode clock drives the conversion band, upload lands at 92/96.
+    // Reporting is throttled to ~1/s — the UI polls every 2.5s, so anything
+    // finer is wasted HTTP.
+    const DOWNLOAD_RANGE = { min: 30, max: 70 }
+    const CONVERT_RANGE = { min: 70, max: 90 }
+    let lastReportedStatus = ''
+    let lastReportedPct = -1
+    let lastReportedAt = 0
+    const reportPct = (status: string, stage: string, pct: number): void => {
+      const rounded = Math.max(0, Math.min(100, Math.round(pct)))
+      const now = Date.now()
+      if (status === lastReportedStatus && rounded === lastReportedPct) return
+      if (status === lastReportedStatus && now - lastReportedAt < 800 && rounded < 99) return
+      lastReportedStatus = status
+      lastReportedPct = rounded
+      lastReportedAt = now
+      reportProgress(jobId, { status, stage, progress: rounded })
+    }
+
     // 2. Download the audio stream while the artwork is fetched/converted in
     //    parallel — the two share no resources, so neither waits on the other.
-    await reportProgress(jobId, { status: 'downloading', stage: 'Gently downloading…', progress: 30 })
+    reportPct('downloading', 'Gently downloading…', DOWNLOAD_RANGE.min)
     const artworkPromise = prepareArtwork(meta, coverUrl || input.artworkUrl, dir)
-    const audioPath = await downloadAudio(sourceUrl, dir, meta.id)
-    const artworkKey = await artworkPromise
-
-    // 3. Convert to MP3 with embedded metadata.
-    await reportProgress(jobId, { status: 'converting', stage: 'Wrapping it in a pillow…', progress: 60 })
+    // Player clients disagree on what they serve for claim-restricted videos:
+    // one can hand out a muted/partial stream (which the conversion stage
+    // rejects) while another serves the real audio. Each client gets one
+    // download+convert attempt; the first that produces a real track wins.
     const trackId = randomUUID()
     const mp3Path = path.join(dir, `${meta.id}.mp3`)
-    await toMp3(audioPath, mp3Path, { title, artist, album: album || undefined })
+    let converted = false
+    let lastErr: unknown = null
+    for (const client of YOUTUBE_CLIENTS) {
+      try {
+        reportPct('downloading', 'Gently downloading…', DOWNLOAD_RANGE.min)
+        const audioPath = await downloadAudio(sourceUrl, dir, meta.id, client, (fraction) => {
+          reportPct(
+            'downloading',
+            'Gently downloading…',
+            DOWNLOAD_RANGE.min + fraction * (DOWNLOAD_RANGE.max - DOWNLOAD_RANGE.min),
+          )
+        })
+        reportPct('converting', 'Normalizing the sound…', CONVERT_RANGE.min)
+        await toMp3(audioPath, mp3Path, { title, artist, album: album || undefined }, (fraction) => {
+          reportPct(
+            'converting',
+            'Normalizing the sound…',
+            CONVERT_RANGE.min + fraction * (CONVERT_RANGE.max - CONVERT_RANGE.min),
+          )
+        })
+        converted = true
+        break
+      } catch (err: any) {
+        lastErr = err
+        console.error(`[worker] attempt with player client ${client} failed`, err?.message || err)
+        // Clear this attempt's files so the next client starts clean.
+        for (const file of await readdir(dir)) {
+          if (file.startsWith(`${client}-`)) {
+            await rm(path.join(dir, file), { force: true }).catch(() => {})
+          }
+        }
+        await rm(mp3Path, { force: true }).catch(() => {})
+      }
+    }
+    if (!converted) {
+      throw lastErr instanceof Error ? lastErr : new Error('The download failed.')
+    }
+    const artworkKey = await artworkPromise
 
     // 4. Upload the MP3.
-    await reportProgress(jobId, { status: 'uploading', stage: 'Tucking it into the library…', progress: 80 })
+    reportPct('uploading', 'Tucking it into the library…', 92)
     const audioKey = `audio/${trackId}/track.mp3`
     await uploadFile(env.buckets.audio, audioKey, mp3Path, 'audio/mpeg')
 
-    await reportProgress(jobId, { status: 'uploading', stage: 'Almost there…', progress: 95 })
+    reportPct('uploading', 'Almost there…', 96)
 
     // 5. Tell Nuxt to create the track record (Nuxt re-validates everything).
     await reportComplete(jobId, {

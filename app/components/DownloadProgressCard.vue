@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Download } from 'lucide-vue-next'
+import { Check, CircleAlert, Download, X } from 'lucide-vue-next'
 import { useDownloadsStore } from '~/stores/downloads'
 
 const downloads = useDownloadsStore()
@@ -7,6 +7,11 @@ const downloads = useDownloadsStore()
 const job = computed(() => downloads.activeJobs[0] ?? null)
 const more = computed(() => Math.max(0, downloads.activeJobs.length - 1))
 const completed = computed(() => downloads.completedTitle)
+const failedJobs = computed(() => downloads.failedJobs)
+
+function dismissFailed(id: string): void {
+  downloads.dismissFailed(id)
+}
 
 // While queued/searching we show the equalizer; actual transfer stages spin
 // a soft ring around the download icon.
@@ -25,13 +30,51 @@ const progress = computed(() => Math.max(0, Math.min(100, job.value?.progress ??
 </script>
 
 <template>
-  <!-- brief “done” flash after the last download completes -->
-  <Transition name="fade-in-up">
-    <div
-      v-if="completed && !job"
-      class="fixed right-4 top-[4.5rem] z-50 w-80 max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6"
-    >
-      <div class="glass rounded-pillow-lg p-4">
+  <div
+    class="fixed right-4 top-[4.5rem] z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 lg:right-6 lg:top-6"
+  >
+    <!-- failed downloads: the reason stays on screen until dismissed -->
+    <Transition name="fade-in-up">
+      <div v-if="failedJobs.length > 0" class="flex flex-col gap-2">
+        <div
+          v-for="f in failedJobs"
+          :key="f.id"
+          class="glass rounded-pillow-lg p-4"
+        >
+          <div class="flex items-start gap-3">
+            <div
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/15"
+            >
+              <CircleAlert class="h-5 w-5 text-rose-300" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-cream">
+                {{ f.title || 'Download failed' }}
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-cream-dim">
+                {{ f.error || 'The download failed. Please try again.' }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-cream-faint transition-colors hover:bg-white/10 hover:text-cream"
+              :aria-label="`Dismiss the failure notice for ${f.title || 'this download'}`"
+              title="Dismiss"
+              @click="dismissFailed(f.id)"
+            >
+              <X class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- brief “done” flash after the last download completes -->
+    <Transition name="fade-in-up">
+      <div
+        v-if="completed && !job"
+        class="glass rounded-pillow-lg p-4"
+      >
         <div class="flex items-center gap-3">
           <div
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lavender-200 text-night-950 shadow-glow"
@@ -44,13 +87,11 @@ const progress = computed(() => Math.max(0, Math.min(100, job.value?.progress ??
           </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
 
-  <!-- active download progress -->
-  <Transition name="fade-in-up">
-    <div v-if="job" class="fixed right-4 top-[4.5rem] z-50 w-80 max-w-[calc(100vw-2rem)] lg:right-6 lg:top-6">
-      <div class="glass rounded-pillow-lg p-4">
+    <!-- active download progress -->
+    <Transition name="fade-in-up">
+      <div v-if="job" class="glass rounded-pillow-lg p-4">
         <div class="flex items-center gap-3">
           <div class="relative flex h-10 w-10 shrink-0 items-center justify-center">
             <span class="absolute inset-0 rounded-full bg-lavender-400/15 animate-breathe" />
@@ -80,6 +121,6 @@ const progress = computed(() => Math.max(0, Math.min(100, job.value?.progress ??
           {{ more }} more {{ more === 1 ? 'song' : 'songs' }} waiting in the queue
         </p>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </div>
 </template>
