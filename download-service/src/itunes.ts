@@ -5,16 +5,22 @@
  * duplicate uploads of the same song). Best-effort: a miss must never block a
  * search or download. Apple documents the Search API as "limited to
  * approximately 20 calls per minute (subject to change)" and recommends
- * caching; we stay safely below that with a 200ms burst stagger, a per-term
- * cache, and a rolling 60-second window capped at 15 calls.
+ * caching; we stay within that with a per-term cache, a 200ms burst stagger,
+ * and a token bucket that lets a search's burst of lookups through at once
+ * while pacing sustained load at ~20 calls/min.
  */
 
 const ITUNES_BASE = 'https://itunes.apple.com/search'
 const SEARCH_TTL_MS = 12 * 60 * 60_000
 const MIN_INTERVAL_MS = 200
-/** Apple's ceiling is ~20/min; never exceed 15 in any 60s window. */
-const MAX_CALLS_PER_WINDOW = 15
-const WINDOW_MS = 60_000
+/**
+ * Apple's ceiling is ~20 calls/min. A token bucket allows a burst of that
+ * size (one search enriches up to ~10–20 results) to complete in seconds;
+ * the previous sliding 15-per-minute window stalled ~60s per call once a
+ * burst hit the ceiling, turning enrichment into minutes of waiting.
+ */
+const BURST = 20
+const REFILL_MS = 3_000 // one token per 3s ≈ 20 calls/min
 
 export interface ItunesMatch {
   /** Canonical track title, per the iTunes catalog. */
@@ -35,26 +41,29 @@ const cache = new Map<string, { at: number; match: ItunesMatch | null }>()
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+let tokens = BURST
+let lastRefill = Date.now()
 let lastRequestAt = 0
-const callTimestamps: number[] = []
 let queue: Promise<unknown> = Promise.resolve()
 
 function throttled<T>(fn: () => Promise<T>): Promise<T> {
   const run = async (): Promise<T> => {
     const now = Date.now()
-    // Drop timestamps that have aged out of the window.
-    while (callTimestamps.length > 0 && now - callTimestamps[0]! >= WINDOW_MS) {
-      callTimestamps.shift()
+    tokens = Math.min(BURST, tokens + (now - lastRefill) / REFILL_MS)
+    lastRefill = now
+    if (tokens < 1) {
+      // Budget exhausted — wait for the next token instead of stalling a full
+      // minute per call (the old window behavior).
+      const wait = Math.ceil((1 - tokens) * REFILL_MS)
+      await sleep(wait + 50)
+      tokens = Math.min(BURST, tokens + (wait + 50) / REFILL_MS)
+      lastRefill = Date.now()
     }
-    // Budget exhausted for this minute — wait until the oldest call ages out
-    // (one slot frees up). Only reachable under sustained heavy use.
-    if (callTimestamps.length >= MAX_CALLS_PER_WINDOW) {
-      await sleep(WINDOW_MS - (now - callTimestamps[0]!) + 250)
-    }
+    tokens -= 1
+    // Keep a gentle stagger between actual network calls even inside a burst.
     const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - lastRequestAt))
     if (wait > 0) await sleep(wait)
     lastRequestAt = Date.now()
-    callTimestamps.push(Date.now())
     return fn()
   }
   const next = queue.then(run, run)

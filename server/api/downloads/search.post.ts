@@ -30,11 +30,18 @@ export default defineEventHandler(async (event) => {
   const page = Math.min(Math.max(Number(body.page) || 1, 1), 20)
 
   async function askWorker(): Promise<SearchPage> {
+    // The worker can legitimately take a while (YouTube + iTunes); give it
+    // room to finish in one shot instead of aborting and re-firing. If the
+    // client gives up meanwhile (a new keystroke fires a fresh search, or a
+    // navigation), abort the worker request so it stops burning YouTube and
+    // iTunes budget on a search nobody will see.
+    const controller = new AbortController()
+    event.node.res.on('close', () => controller.abort())
     const res = await $fetch<SearchPage>(`${env.downloadServiceUrl}/search`, {
       method: 'POST',
       headers: serviceAuthHeaders(),
       body: { query, page },
-      timeout: 60_000,
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]),
     })
     return { results: res.results ?? [], hasMore: res.hasMore }
   }
@@ -51,6 +58,21 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: status === 422 ? 422 : 503,
         statusMessage: message,
+      })
+    }
+    // Aborted: either the client disconnected (new keystroke/navigation) or
+    // the worker exceeded the search budget. Re-firing is pointless in both
+    // cases — a timeout means the worker is still chewing through a slow
+    // search, and another request would just double the YouTube load.
+    const aborted =
+      err?.name === 'AbortError' ||
+      err?.name === 'TimeoutError' ||
+      err?.cause?.name === 'AbortError' ||
+      err?.cause?.name === 'TimeoutError'
+    if (aborted) {
+      throw createError({
+        statusCode: 504,
+        statusMessage: 'The search is taking longer than usual — please try again in a moment.',
       })
     }
     // No real answer — likely a transient hiccup (YouTube, iTunes, or the

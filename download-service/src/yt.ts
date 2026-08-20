@@ -116,7 +116,11 @@ export async function search(
           '--playlist-end',
           String(end),
         ],
-        45_000,
+        // A flat search normally answers in a couple of seconds; this cap is
+        // only for YouTube being slow/rate-limited for this IP. Short enough
+        // that the worst case (two attempts + retry sleep) stays ~40s instead
+        // of ~90s.
+        20_000,
       )
       stdout = res.stdout
       break
@@ -164,17 +168,25 @@ export async function search(
 
   if (candidates.length === 0) return { videos: [], hasMore }
 
-  // Only videos with an unknown duration need a full metadata fetch.
+  // Only videos with an unknown duration need a full metadata fetch. These
+  // run in a small pool with a short per-video timeout: many concurrent
+  // extractions from one IP invite YouTube throttling (which makes each one
+  // crawl), and the duration only feeds the ten-minute pre-filter — the
+  // download-time re-check enforces the rule authoritatively anyway.
   const missing = candidates.filter((c) => c.duration === null)
   if (missing.length > 0) {
     const enriched: VideoInfo[] = []
+    const CONCURRENCY = 3
+    const started = Date.now()
     let cursor = 0
+    let resolved = 0
     const worker = async (): Promise<void> => {
       while (cursor < missing.length) {
         const index = cursor++
         const candidate = missing[index]!
         try {
-          const full = await fetchMetadata(candidate.url, maxDuration)
+          const full = await fetchMetadata(candidate.url, maxDuration, 15_000)
+          resolved++
           enriched.push({
             id: full.id,
             title: full.title,
@@ -189,7 +201,10 @@ export async function search(
         }
       }
     }
-    await Promise.all(Array.from({ length: Math.min(WINDOW, missing.length) }, worker))
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, missing.length) }, worker))
+    console.log(
+      `[search] resolved ${resolved}/${missing.length} unknown durations in ${Date.now() - started}ms`,
+    )
     const byUrl = new Map(enriched.map((e) => [e.url, e]))
     return {
       videos: candidates
@@ -213,7 +228,11 @@ const metaCache = new Map<string, { at: number; meta: FullMetadata }>()
  * Re-fetch full metadata for a video and validate the duration independently
  * of anything the client provided. Throws YtError when the video is unusable.
  */
-export async function fetchMetadata(url: string, maxDuration: number): Promise<FullMetadata> {
+export async function fetchMetadata(
+  url: string,
+  maxDuration: number,
+  timeoutMs = 60_000,
+): Promise<FullMetadata> {
   const cached = metaCache.get(url)
   if (cached && Date.now() - cached.at < META_CACHE_TTL_MS) {
     if (cached.meta.duration !== null && cached.meta.duration > maxDuration) {
@@ -224,7 +243,7 @@ export async function fetchMetadata(url: string, maxDuration: number): Promise<F
 
   let stdout: string
   try {
-    const res = await run(['--no-playlist', '--skip-download', '--dump-single-json', url], 60_000)
+    const res = await run(['--no-playlist', '--skip-download', '--dump-single-json', url], timeoutMs)
     stdout = res.stdout
   } catch (err: any) {
     const stderr: string = err?.stderr || err?.message || ''

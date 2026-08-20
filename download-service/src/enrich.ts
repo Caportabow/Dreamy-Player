@@ -11,6 +11,10 @@
  * artist/artwork, and it stays an independent track (itunesId null) so it never
  * collapses with the original or with other variants.
  *
+ * Enrichments are cached twice: by video URL (repeat visits of the same
+ * upload) and by normalized song (different uploads or queries of the same
+ * track reuse the iTunes result without a fresh lookup).
+ *
  * Everything is best-effort: if iTunes fails, results are shown with their raw
  * YouTube metadata and thumbnails.
  */
@@ -42,8 +46,19 @@ export interface Enrichment {
 
 const ENRICH_LIMIT = 10
 const ENRICH_TTL_MS = 30 * 60_000
+/** Canonical iTunes data barely changes, so a matched song stays reusable much
+ * longer than a video URL — this is what saves lookups on repeat searches. */
+const SONG_CACHE_TTL_MS = 12 * 60 * 60_000
 
 const enrichCache = new Map<string, { at: number; enrichment: Enrichment | null }>()
+/**
+ * Song-level cache: normalized "artist - title" → enrichment. YouTube serves
+ * the same track many times (official upload, Topic channel, re-uploads), and
+ * differently-phrased queries keep finding those uploads — once a song has
+ * been matched, every later upload or query of it reuses the canonical
+ * name/artist/art/preview instead of asking iTunes again.
+ */
+const songCache = new Map<string, { at: number; enrichment: Enrichment | null }>()
 
 /** Fast path: reuse enrichment produced during the search that found this URL. */
 export function getEnrichment(url: string): Enrichment | null {
@@ -175,6 +190,21 @@ async function resolveEnrichment(
   const guess = raw ? guessFromRaw(raw, video) : guessArtistTitle(video)
   const variantTags = extractVariantTags(video.title)
 
+  // Reuse a known song before asking iTunes: the same track is uploaded many
+  // times, and once it's been matched, every later upload (and differently
+  // phrased query for it) can adopt the canonical result without a fresh
+  // lookup. Variants are excluded — their tags change the result, and they
+  // never share the original's enrichment.
+  if (variantTags.length === 0) {
+    const guessKey = normalizeKey(guess.artist ?? '', guess.title)
+    const songHit = songCache.get(guessKey)
+    if (songHit && Date.now() - songHit.at < SONG_CACHE_TTL_MS) {
+      const enrichment = songHit.enrichment
+      enrichCache.set(video.url, { at: Date.now(), enrichment })
+      return enrichment
+    }
+  }
+
   // A variant upload ("Song (slowed + reverb)", "Song (best part)", …) is
   // matched against iTunes by its stripped song name, so the original's
   // artist/cover apply while the tags stay in the result's name. The variant
@@ -219,34 +249,55 @@ async function resolveEnrichment(
     : null
 
   enrichCache.set(video.url, { at: Date.now(), enrichment })
+  // Remember the song itself, so future uploads/queries skip the iTunes lookup
+  // entirely. Keyed by the canonical name/artist AND by the guess that led to
+  // it (they can differ in phrasing), so both directions hit.
+  if (match && variantTags.length === 0) {
+    const canonicalKey = normalizeKey(match.artist, match.title)
+    const guessKey = normalizeKey(guess.artist ?? '', guess.title)
+    songCache.set(canonicalKey, { at: Date.now(), enrichment })
+    if (guessKey !== canonicalKey) songCache.set(guessKey, { at: Date.now(), enrichment })
+  }
   if (enrichCache.size > 1000) prune(enrichCache, ENRICH_TTL_MS)
+  if (songCache.size > 1000) prune(songCache, SONG_CACHE_TTL_MS)
   return enrichment
 }
 
 /**
  * Normalize the top results, attach cover art and previews, and collapse
- * duplicate uploads of the same song. A single serial lane is enough: iTunes
- * is fast and lightly throttled (200ms stagger), and one lookup supplies the
- * metadata, artwork, preview, and dedupe key at once.
+ * duplicate uploads of the same song. One lookup supplies the metadata,
+ * artwork, preview, and dedupe key at once.
+ *
+ * The per-video lookups are resolved concurrently: the results are
+ * independent, and overlapping their network latency shaves seconds off a
+ * search. The global iTunes throttle (a token bucket at ~20 calls/min) still
+ * paces every call, so Apple's rate limit is untouched.
  */
 export async function enrichResults(results: VideoInfo[]): Promise<EnrichedResult[]> {
   const candidates = results.slice(0, ENRICH_LIMIT)
   if (candidates.length === 0) return []
 
-  const enriched: EnrichedResult[] = []
-  for (const video of candidates) {
-    const normalization = await resolveEnrichment(video)
-    enriched.push({
-      ...video,
-      title: normalization?.title || video.title,
-      artist: normalization?.artist || video.artist,
-      album: normalization?.album ?? null,
-      artworkUrl: normalization?.artworkUrl ?? null,
-      previewUrl: normalization?.previewUrl ?? null,
-      itunesId: normalization?.itunesId ?? null,
-      matched: normalization !== null,
-    })
-  }
+  const normalized = await Promise.all(
+    candidates.map(async (video) => {
+      // Enrichment is best-effort; a single failure must never sink the whole
+      // search (the result then just falls back to its raw YouTube metadata).
+      const normalization = await resolveEnrichment(video).catch(() => null)
+      return { video, normalization }
+    }),
+  )
+
+  // Keep the results in their original order — dedupe below preserves the
+  // first upload of each song, so display order stays stable across searches.
+  const enriched: EnrichedResult[] = normalized.map(({ video, normalization }) => ({
+    ...video,
+    title: normalization?.title || video.title,
+    artist: normalization?.artist || video.artist,
+    album: normalization?.album ?? null,
+    artworkUrl: normalization?.artworkUrl ?? null,
+    previewUrl: normalization?.previewUrl ?? null,
+    itunesId: normalization?.itunesId ?? null,
+    matched: normalization !== null,
+  }))
 
   // Collapse duplicate uploads of the same song into a single result.
   // iTunes gives a stable key; fall back to normalized title + artist.

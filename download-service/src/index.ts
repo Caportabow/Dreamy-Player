@@ -28,8 +28,10 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'dreamy-download-service' })
 })
 
-/** Short-lived search cache: repeat queries (per page) are served instantly. */
-const SEARCH_CACHE_TTL_MS = 3 * 60_000
+/** Search cache: repeat queries (per page) are served instantly. Long enough
+ * that re-searching the same song doesn't re-hit YouTube/iTunes, short enough
+ * that new uploads still surface within a few minutes. */
+const SEARCH_CACHE_TTL_MS = 10 * 60_000
 const searchCache = new Map<string, { at: number; results: EnrichedResult[]; hasMore: boolean }>()
 
 /** Search YouTube in metadata-only mode; only ≤10min results are returned. */
@@ -49,8 +51,23 @@ app.post('/search', requireAuth, async (req, res) => {
   try {
     // YouTube search first, then normalize with the iTunes catalog (which
     // also collapses duplicate uploads) and attach cover art + previews.
+    // The two stages are timed separately so slow searches can be diagnosed
+    // (see docker logs) instead of guessed at.
+    const t0 = Date.now()
     const { videos, hasMore } = await search(query, env.maxDuration, page)
+    const t1 = Date.now()
+    // The browser fires a new search on every keystroke and abandons the
+    // earlier ones (Nuxt aborts them on disconnect). Enrichment is the
+    // expensive, rate-limited stage — if nobody is listening, stop before it
+    // so the iTunes budget isn't burned on results nobody will see.
+    // Note: only `res.destroyed` signals a real disconnect — `req.destroyed`
+    // also becomes true on completely normal requests once the body has been
+    // consumed, and would make us drop perfectly good searches.
+    if (res.destroyed) return
     const results = await enrichResults(videos)
+    console.log(
+      `[search] "${query}" p${page}: yt-dlp stage ${t1 - t0}ms, enrichment ${Date.now() - t1}ms, total ${Date.now() - t0}ms, ${results.length} results`,
+    )
     searchCache.set(cacheKey, { at: Date.now(), results, hasMore })
     if (searchCache.size > 400) {
       const now = Date.now()
