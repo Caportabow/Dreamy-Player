@@ -77,6 +77,7 @@ const JUNK_MARKERS = /lyrics|official\s+(music\s+)?(video|audio)|hd|4k|1080p|60f
 /** Strip the usual YouTube title furniture ("(Official Video)", "Lyrics", …). */
 function cleanTitle(rawTitle: string): string {
   return rawTitle
+    .replace(/\s*\|\|.*$/, ' ')
     .replace(/\s*\[[^\]]*\]/g, ' ')
     .replace(/\s*\([^)]*\)/g, ' ')
     .replace(new RegExp(`\\s+(${JUNK_MARKERS.source})\\s*$`, 'i'), ' ')
@@ -91,6 +92,7 @@ function cleanTitle(rawTitle: string): string {
  */
 const VARIANT_PATTERNS: Array<{ label: string; re: RegExp }> = [
   // Combined forms first so they win over their parts.
+  { label: 'looped', re: /\bslooped\b/i },
   { label: 'slowed + reverb', re: /\bslowed\s*(?:down\s*)?(?:&|and|\+)\s*reverb\b/i },
   { label: 'slowed down', re: /\bslowed\s*down\b/i },
   { label: 'slowed', re: /\bslowed\b/i },
@@ -247,6 +249,13 @@ async function resolveEnrichment(
     // Plain normalization. This also covers titles where the "tag" is
     // literally the song name (e.g. Daniel Caesar's "Best Part").
     match = await searchMatch(guess.title, guess.artist)
+    // The channel appended above comes from the uploader's account. For
+    // official/Topic channels that's the artist and helps; for random
+    // anime/lyrics accounts it pollutes the query and can hide a perfect
+    // title match — retry title-only before giving up.
+    if (!match && guess.artist) {
+      match = await searchMatch(guess.title, null)
+    }
   }
 
   const enrichment: Enrichment | null = match
