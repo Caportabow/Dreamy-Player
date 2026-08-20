@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2, Plus, Search, X } from 'lucide-vue-next'
+import { History, Loader2, Plus, Search, X } from 'lucide-vue-next'
 import type { SearchResult } from '~/types/music'
 import { useDownloadsStore } from '~/stores/downloads'
 import { apiErrorMessage, useToast } from '~/composables/useToast'
@@ -12,6 +12,55 @@ const searchInput = ref('')
 const addingId = ref<string | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let lastSearchQuery = ''
+
+// --- Recent searches (per browser, so re-finding a song is one tap away) ---
+const RECENT_KEY = 'dreamy:recent-searches'
+const MAX_RECENT = 8
+const recentSearches = ref<string[]>([])
+
+function loadRecentSearches(): void {
+  if (import.meta.server) return
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    recentSearches.value = Array.isArray(parsed)
+      ? parsed.filter((s): s is string => typeof s === 'string').slice(0, MAX_RECENT)
+      : []
+  } catch {
+    recentSearches.value = []
+  }
+}
+
+function persistRecentSearches(): void {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recentSearches.value))
+  } catch {
+    // storage unavailable — recents just live for this session
+  }
+}
+
+/** Remember a query that actually produced results (superseded keystroke
+ * searches return nothing and never reach here). Newest first, deduped. */
+function rememberSearch(query: string): void {
+  recentSearches.value = [query, ...recentSearches.value.filter((s) => s !== query)].slice(0, MAX_RECENT)
+  persistRecentSearches()
+}
+
+function clearRecentSearches(): void {
+  recentSearches.value = []
+  try {
+    localStorage.removeItem(RECENT_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+/** Re-run an earlier search (the input watcher fires the actual search). */
+function runRecentSearch(query: string): void {
+  searchInput.value = query
+  if (searchTimer) clearTimeout(searchTimer)
+  runRemoteSearch()
+}
 
 // Results briefly flip to a ✓ so the tap feels answered even before the toast.
 const addedIds = ref(new Set<string>())
@@ -32,7 +81,7 @@ function markAdded(id: string): void {
 }
 
 /** Search the download service for songs that could be added to the library. */
-function runRemoteSearch(): void {
+async function runRemoteSearch(): Promise<void> {
   const q = searchInput.value.trim()
   if (!q) {
     downloads.reset()
@@ -43,7 +92,10 @@ function runRemoteSearch(): void {
   // screen (the Try again button handles retries after an error).
   if (q === lastSearchQuery) return
   lastSearchQuery = q
-  void downloads.search(q)
+  const results = await downloads.search(q)
+  // Only remember searches that actually completed — superseded keystroke
+  // searches return [] and would just clutter the list.
+  if (results.length > 0) rememberSearch(q)
 }
 
 function retrySearch(): void {
@@ -93,6 +145,7 @@ function clearSearch(): void {
 
 // The Library page hands its query over via ?q= ("Search online for …").
 onMounted(() => {
+  loadRecentSearches()
   const q = route.query.q
   if (typeof q === 'string' && q.trim()) {
     searchInput.value = q
@@ -153,12 +206,40 @@ useHead({ title: 'Add song' })
     </header>
 
     <!-- waiting for a query -->
-    <EmptyState
-      v-if="!searchInput.trim()"
-      icon="music"
-      title="Search to add songs"
-      description="Type above to find new songs — preview them and add them in one tap."
-    />
+    <template v-if="!searchInput.trim()">
+      <EmptyState
+        icon="music"
+        title="Search to add songs"
+        description="Type above to find new songs — preview them and add them in one tap."
+      />
+
+      <!-- quick re-run of earlier searches -->
+      <div v-if="recentSearches.length > 0" class="mt-8">
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-xs uppercase tracking-wider text-cream-faint">Recent searches</p>
+          <button
+            type="button"
+            class="text-xs text-cream-faint transition-colors hover:text-cream"
+            @click="clearRecentSearches"
+          >
+            Clear
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="q in recentSearches"
+            :key="q"
+            type="button"
+            class="flex items-center gap-1.5 rounded-full bg-white/5 px-3.5 py-1.5 text-sm text-cream-dim transition-colors hover:bg-lavender-400/15 hover:text-lavender-100"
+            :title="`Search again for “${q}”`"
+            @click="runRecentSearch(q)"
+          >
+            <History class="h-3.5 w-3.5" />
+            {{ q }}
+          </button>
+        </div>
+      </div>
+    </template>
 
     <template v-else>
       <div
