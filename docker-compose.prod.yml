@@ -1,0 +1,23 @@
+# ------------------------------------------------------------------
+# Production override for docker-compose.yml.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# This only swaps the `nuxt` service onto the production `runner` image
+# (built .output + migrations + `node .output/server/index.mjs`).
+# postgres, minio, download-worker, and cloudflared are inherited unchanged.
+# ------------------------------------------------------------------
+
+services:
+  nuxt:
+    build:
+      context: .
+      # Build the final runtime stage instead of the dev `deps` stage.
+      target: runner
+    # The runner image's CMD already migrates + serves; replace the dev command.
+    command: ["sh", "-c", "node scripts/migrate.mjs && node .output/server/index.mjs"]
+    # Drop the dev source mounts so the image's built .output is used.
+    volumes: !reset []
+    environment:
+      NODE_ENV: production
