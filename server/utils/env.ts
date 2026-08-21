@@ -1,3 +1,5 @@
+import { resolveDatabaseUrl } from '../db/connection-string'
+
 const str = (v: string | undefined, fallback: string): string =>
   v && v.trim().length > 0 ? v.trim() : fallback
 
@@ -10,7 +12,7 @@ const bool = (v: string | undefined, fallback = false): boolean =>
   v === undefined ? fallback : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase())
 
 export const env = {
-  databaseUrl: str(process.env.DATABASE_URL, 'postgres://dreamy:dreamy@localhost:5432/dreamy'),
+  databaseUrl: resolveDatabaseUrl(),
   sessionSecret: str(process.env.SESSION_SECRET, 'dev-session-secret-change-me'),
   sessionTtlDays: num(process.env.SESSION_TTL_DAYS, 30),
   minio: {

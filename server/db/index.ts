@@ -1,8 +1,9 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from './schema'
+import { resolveDatabaseUrl } from './connection-string'
 
-const connectionString = process.env.DATABASE_URL || 'postgres://dreamy:dreamy@localhost:5432/dreamy'
+const connectionString = resolveDatabaseUrl()
 
 // `prepare: false` is required for postgres-js inside Nitro.
 const client = postgres(connectionString, { prepare: false, max: 10 })
