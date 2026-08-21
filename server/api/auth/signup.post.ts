@@ -3,9 +3,14 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { profiles, users } from '../../db/schema'
 import { createSession, setSessionCookie, toAuthUser } from '../../utils/auth'
+import { env } from '../../utils/env'
 import { hashPassword, validatePassword, validateUsername } from '../../utils/password'
 
 export default defineEventHandler(async (event) => {
+  if (!env.allowSignup) {
+    throw createError({ statusCode: 403, statusMessage: 'Registration is disabled.' })
+  }
+
   const body = await readBody<{ username?: string; password?: string }>(event)
 
   // Usernames are unique and compared case-insensitively (stored lowercased);

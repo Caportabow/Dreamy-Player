@@ -8,6 +8,7 @@ const route = useRoute()
 const auth = useAuthStore()
 const player = usePlayerStore()
 const toast = useToast()
+const signupAllowed = useSignupStatus()
 
 const username = ref('')
 const password = ref('')
@@ -60,13 +61,15 @@ useHead({ title: 'Create account' })
     <div class="w-full animate-fade-in-up">
       <div class="mb-8 flex flex-col items-center text-center">
         <AppLogo :size="56" class="mb-4" />
-        <h1 class="font-display text-2xl font-semibold text-cream">Make yourself at home</h1>
+        <h1 class="font-display text-2xl font-semibold text-cream">
+          {{ signupAllowed ? 'Make yourself at home' : 'Registration is closed' }}
+        </h1>
         <p class="mt-2 max-w-xs text-sm leading-relaxed text-cream-dim">
-          A quiet place for your favourites, playlists, and listening story.
+          {{ signupAllowed ? 'A quiet place for your favourites, playlists, and listening story.' : 'New accounts are not being accepted right now.' }}
         </p>
       </div>
 
-      <form class="pillow flex flex-col gap-4 p-6" @submit.prevent="submit">
+      <form v-if="signupAllowed" class="pillow flex flex-col gap-4 p-6" @submit.prevent="submit">
         <div class="flex flex-col gap-2">
           <Label for="username">Username</Label>
           <Input
@@ -139,6 +142,10 @@ useHead({ title: 'Create account' })
           {{ loading ? 'Creating…' : 'Create account' }}
         </Button>
       </form>
+
+      <div v-else class="pillow p-6 text-center text-sm text-cream-dim">
+        Registration is currently disabled. Existing accounts can still sign in.
+      </div>
 
       <p class="mt-6 text-center text-sm text-cream-dim">
         Already have an account?

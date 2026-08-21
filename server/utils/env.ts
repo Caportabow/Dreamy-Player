@@ -15,6 +15,7 @@ export const env = {
   databaseUrl: resolveDatabaseUrl(),
   sessionSecret: str(process.env.SESSION_SECRET, 'dev-session-secret-change-me'),
   sessionTtlDays: num(process.env.SESSION_TTL_DAYS, 30),
+  allowSignup: bool(process.env.ALLOW_SIGNUP, true),
   minio: {
     endpoint: str(process.env.MINIO_ENDPOINT, 'localhost'),
     port: num(process.env.MINIO_PORT, 9000),

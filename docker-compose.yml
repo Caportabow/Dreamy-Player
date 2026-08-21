@@ -80,6 +80,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-dreamy}:${POSTGRES_PASSWORD:-dreamy}@postgres:5432/${POSTGRES_DB:-dreamy}
       SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"

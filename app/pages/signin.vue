@@ -10,6 +10,7 @@ const auth = useAuthStore()
 const player = usePlayerStore()
 const passkeys = usePasskeys()
 const toast = useToast()
+const signupAllowed = useSignupStatus()
 
 const username = ref('')
 const password = ref('')
@@ -131,7 +132,7 @@ useHead({ title: 'Sign in' })
         </p>
       </form>
 
-      <p class="mt-6 text-center text-sm text-cream-dim">
+      <p v-if="signupAllowed" class="mt-6 text-center text-sm text-cream-dim">
         New to Dreamy?
         <NuxtLink
           :to="{ path: '/signup', query: route.query }"
