@@ -16,7 +16,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50
 ```
 
-You'll see the image build scroll by, then a table showing `nuxt`, `postgres`, `minio`, `download-worker`, `cloudflared` with `Up (healthy)` statuses, then a live log stream. **Ctrl+C only stops the log stream — the containers keep running.**
+You'll see the image build scroll by, then a table showing `nuxt`, `postgres`, `minio`, `download-worker` with `Up (healthy)` statuses (plus `cloudflared` when a `TUNNEL_TOKEN` is set), then a live log stream. **Ctrl+C only stops the log stream — the containers keep running.**
 
 ### Daily workflows
 

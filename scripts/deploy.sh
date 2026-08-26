@@ -13,6 +13,12 @@ cd "$(dirname "$0")/.."
 
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 
+# Enable the Cloudflare tunnel only when a token is configured (via the
+# environment or .env). Without a token, cloudflared stays off by design.
+if [ -n "${TUNNEL_TOKEN:-}" ] || grep -Eq '^TUNNEL_TOKEN=.+' .env 2>/dev/null; then
+  COMPOSE+=(--profile tunnel)
+fi
+
 cmd="${1:-}"
 if [ $# -gt 0 ]; then
   shift

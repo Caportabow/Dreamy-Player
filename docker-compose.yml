@@ -1,7 +1,8 @@
 # ------------------------------------------------------------------
 # Dreamy — full development stack.
 #
-#   docker compose up --build
+#   scripts/dev.sh up            # build + start (auto-enables the tunnel)
+#   docker compose up --build    # raw alternative (no tunnel auto-enable)
 #
 # Then open http://localhost:3000
 # MinIO console: http://localhost:9001 (minioadmin / minioadmin)
@@ -111,6 +112,11 @@ services:
         condition: service_started
 
   # Cloudflare Tunnel — exposes the Nuxt app at your tunnel hostname.
+  # Opt-in: this service only runs when the "tunnel" profile is enabled, so an
+  # empty or missing TUNNEL_TOKEN simply leaves it off. scripts/dev.sh and
+  # scripts/deploy.sh enable the profile automatically when TUNNEL_TOKEN is
+  # set; manually enable with:
+  #   docker compose --profile tunnel up -d
   # Requires TUNNEL_TOKEN in .env (Cloudflare Zero Trust > Networks > Tunnels:
   # create a tunnel, then copy the token from its "Install and run" step).
   # In the tunnel's Public Hostname tab, point the hostname at http://nuxt:3000
@@ -118,7 +124,8 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env to enable the Cloudflare tunnel}
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-}
     depends_on:
       - nuxt
 
