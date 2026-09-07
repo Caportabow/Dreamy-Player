@@ -38,9 +38,12 @@ export interface ItunesMatch {
   /** Track length in milliseconds (iTunes catalog) — the canonical audio
    * length, used to pick the real recording among duplicate uploads. */
   trackTimeMillis: number | null
+  source: 'itunes'
 }
 
-const cache = new Map<string, { at: number; match: ItunesMatch | null }>()
+/** Raw API responses cached by term, so forward and reversed-order scoring of
+ * the same query share a single network call (the swap only re-scores). */
+const cache = new Map<string, { at: number; data: any | null }>()
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -93,38 +96,67 @@ function upscaleArtwork(url: string): string {
 }
 
 function norm(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, ' ').trim()
+  // Strip diacritics too, so "Beyoncé" matches a query artist written
+  // "Beyonce" — without this, the artist-mismatch guard below would reject
+  // perfectly good matches purely on accent spelling.
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
-function pickBest(data: any, wantedTitle: string, wantedArtist: string | null): ItunesMatch | null {
+function pickBest(
+  data: any,
+  wantedTitle: string,
+  wantedArtist: string | null,
+  swap = false,
+): ItunesMatch | null {
   const results = Array.isArray(data?.results) ? data.results : []
   if (results.length === 0) return null
 
-  const wanted = norm(wantedTitle)
-  const artist = wantedArtist ? norm(wantedArtist) : ''
+  // Reversed uploads write "Title - Artist"; when the query is swapped the
+  // expectations cross — the result's artist must look like the query's title
+  // side and its title like the query's artist side.
+  const wanted = norm(swap ? (wantedArtist ?? '') : wantedTitle)
+  const artist = norm(swap ? wantedTitle : (wantedArtist ?? ''))
 
   let best: any = null
   let bestScore = -1
+  let bestTitleScore = 0
+  let bestArtistScore = 0
   for (const result of results) {
     const title = norm(String(result?.trackName ?? ''))
     const resultArtist = norm(String(result?.artistName ?? ''))
-    let score = 0
+    let titleScore = 0
     if (wanted && title) {
-      if (title === wanted) score += 4
-      else if (title.includes(wanted) || wanted.includes(title)) score += 2
+      if (title === wanted) titleScore = 4
+      else if (title.includes(wanted) || wanted.includes(title)) titleScore = 2
     }
+    let artistScore = 0
     if (artist && resultArtist) {
-      if (resultArtist === artist) score += 3
-      else if (resultArtist.includes(artist) || artist.includes(resultArtist)) score += 1
+      if (resultArtist === artist) artistScore = 3
+      else if (resultArtist.includes(artist) || artist.includes(resultArtist)) artistScore = 1
     }
+    const score = titleScore + artistScore
     if (score > bestScore) {
       bestScore = score
+      bestTitleScore = titleScore
+      bestArtistScore = artistScore
       best = result
     }
   }
 
   // A result must at least overlap in title to be worth trusting.
-  if (!best || bestScore < 2) return null
+  if (!best || bestTitleScore === 0) return null
+  // When the query named an artist the result doesn't share, the result is a
+  // different recording of the same-named song — a cover, a cover band, or
+  // someone else's track entirely (e.g. searching "Take a Slice" by Glass
+  // Animals keeps matching an unrelated cover of the same name). Even an exact
+  // title match can't override a total artist mismatch; the caller falls back
+  // to a title-only retry where that is safe.
+  if (artist && bestArtistScore === 0) return null
 
   const artwork =
     typeof best.artworkUrl100 === 'string' && best.artworkUrl100
@@ -145,7 +177,34 @@ function pickBest(data: any, wantedTitle: string, wantedArtist: string | null): 
     trackTimeMillis: Number.isFinite(Number(best.trackTimeMillis))
       ? Number(best.trackTimeMillis)
       : null,
+    source: 'itunes',
   }
+}
+
+/** One lookup: fetch (or reuse the cached response), then score it. */
+async function searchTerm(
+  title: string,
+  artist: string | null,
+  swap: boolean,
+): Promise<ItunesMatch | null> {
+  const term = [title, artist].filter(Boolean).join(' ').trim().slice(0, 200)
+  if (!term) return null
+  const cacheKey = term.toLowerCase()
+
+  const hit = cache.get(cacheKey)
+  let data: any | null = null
+  if (hit && Date.now() - hit.at < SEARCH_TTL_MS) {
+    data = hit.data
+  } else {
+    const params = new URLSearchParams({ term, entity: 'song', limit: '5', country: 'US' })
+    data = await throttled(async () => {
+      const json = await getJson(`${ITUNES_BASE}?${params}`)
+      return json ?? null
+    })
+    cache.set(cacheKey, { at: Date.now(), data })
+    if (cache.size > 500) prune(cache, SEARCH_TTL_MS)
+  }
+  return data ? pickBest(data, title, artist, swap) : null
 }
 
 /**
@@ -156,22 +215,20 @@ export async function searchMatch(
   title: string,
   artist: string | null,
 ): Promise<ItunesMatch | null> {
-  const term = [title, artist].filter(Boolean).join(' ').trim().slice(0, 200)
-  if (!term) return null
-  const cacheKey = term.toLowerCase()
+  return searchTerm(title, artist, false)
+}
 
-  const hit = cache.get(cacheKey)
-  if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.match
-
-  const params = new URLSearchParams({ term, entity: 'song', limit: '5', country: 'US' })
-  const match = await throttled(async () => {
-    const data = await getJson(`${ITUNES_BASE}?${params}`)
-    return pickBest(data, title, artist)
-  })
-
-  cache.set(cacheKey, { at: Date.now(), match })
-  if (cache.size > 500) prune(cache, SEARCH_TTL_MS)
-  return match
+/**
+ * Same query as `searchMatch`, but scored for reversed "Title - Artist"
+ * uploads: the pair is interpreted as (artist, title). Shares the same term
+ * and cached response, so it costs nothing when the forward search already
+ * ran — only the scoring differs.
+ */
+export async function searchMatchSwapped(
+  title: string,
+  artist: string | null,
+): Promise<ItunesMatch | null> {
+  return searchTerm(title, artist, true)
 }
 
 function prune(map: Map<string, { at: number }>, ttlMs: number): void {

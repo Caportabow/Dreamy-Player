@@ -101,10 +101,12 @@ export interface SearchResult {
   artworkUrl: string | null
   /** Short (~30s) Apple iTunes preview; null when none was found. */
   previewUrl: string | null
-  /** Apple track id — present when the song was matched. */
+  /** Apple track id — present when the song was matched on iTunes. */
   itunesId: string | null
-  /** True when title/artist were normalized via iTunes. */
+  /** True when title/artist were normalized via a music catalog. */
   matched: boolean
+  /** Which catalog the normalized metadata came from; null when unmatched. */
+  source: 'itunes' | 'musicbrainz' | null
   url: string
 }
 

@@ -25,6 +25,13 @@ const isPreviewing = computed(
   () => props.result.previewUrl !== null && playingUrl.value === props.result.previewUrl,
 )
 
+// The checkmark credits the catalog that normalized the name — MusicBrainz
+// fills in tracks the iTunes catalog doesn't carry, and the badge should not
+// claim iTunes for those.
+const matchLabel = computed(() =>
+  props.result.source === 'musicbrainz' ? 'Name matched on MusicBrainz' : 'Name matched on iTunes',
+)
+
 function select(): void {
   emit('select', props.result)
 }
@@ -65,8 +72,8 @@ function toggle(): void {
         <BadgeCheck
           v-if="result.matched"
           class="h-4 w-4 shrink-0 text-lavender-200"
-          :aria-label="'Name matched on iTunes'"
-          title="Name matched on iTunes"
+          :aria-label="matchLabel"
+          :title="matchLabel"
         />
       </h3>
       <p class="mt-0.5 truncate text-xs text-cream-dim">
