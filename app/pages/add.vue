@@ -13,6 +13,14 @@ const addingId = ref<string | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let lastSearchQuery = ''
 
+// Each search hits the download service (YouTube + enrichment) and can take
+// 10–30s, so only fire once the user has stopped typing for a couple of
+// seconds — searching on every keystroke spams the API (issue #4).
+const SEARCH_DEBOUNCE_MS = 1000
+// True while the debounce is still counting down — the search hasn't fired
+// yet, so the UI must not claim there are no results.
+const searchPending = ref(false)
+
 // --- Recent searches (per browser, so re-finding a song is one tap away) ---
 const RECENT_KEY = 'dreamy:recent-searches'
 const MAX_RECENT = 8
@@ -55,10 +63,29 @@ function clearRecentSearches(): void {
   }
 }
 
-/** Re-run an earlier search (the input watcher fires the actual search). */
+// The input watcher must not re-arm the debounce for programmatic input
+// changes (recent chips, ?q=): those callers start the search themselves, and
+// the watcher fires asynchronously *after* them — it would flip searchPending
+// back on and hide results behind a false "waiting to search" state.
+let skipNextWatch = false
+
+/** Set the query without letting the input watcher re-arm the debounce. */
+function setSearchInput(value: string): void {
+  if (value !== searchInput.value) skipNextWatch = true
+  searchInput.value = value
+}
+
+/** Re-run an earlier search immediately. */
 function runRecentSearch(query: string): void {
-  searchInput.value = query
+  setSearchInput(query)
   if (searchTimer) clearTimeout(searchTimer)
+  runRemoteSearch()
+}
+
+/** Enter skips the debounce and starts the search immediately. */
+function searchNow(): void {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchPending.value = false
   runRemoteSearch()
 }
 
@@ -82,6 +109,7 @@ function markAdded(id: string): void {
 
 /** Search the download service for songs that could be added to the library. */
 async function runRemoteSearch(): Promise<void> {
+  searchPending.value = false
   const q = searchInput.value.trim()
   if (!q) {
     downloads.reset()
@@ -132,13 +160,27 @@ async function addResult(result: SearchResult): Promise<void> {
 }
 
 watch(searchInput, () => {
+  if (skipNextWatch) {
+    skipNextWatch = false
+    return
+  }
   if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(runRemoteSearch, 300)
+  if (!searchInput.value.trim()) {
+    // Same cleanup as clearSearch(): the user emptied the box (e.g. by
+    // deleting text), so stale results must not linger on screen.
+    searchPending.value = false
+    downloads.reset()
+    lastSearchQuery = ''
+    return
+  }
+  searchPending.value = true
+  searchTimer = setTimeout(runRemoteSearch, SEARCH_DEBOUNCE_MS)
 })
 
 function clearSearch(): void {
   searchInput.value = ''
   if (searchTimer) clearTimeout(searchTimer)
+  searchPending.value = false
   downloads.reset()
   lastSearchQuery = ''
 }
@@ -148,7 +190,7 @@ onMounted(() => {
   loadRecentSearches()
   const q = route.query.q
   if (typeof q === 'string' && q.trim()) {
-    searchInput.value = q
+    setSearchInput(q)
     runRemoteSearch()
   }
 })
@@ -185,6 +227,7 @@ useHead({ title: 'Add song' })
             placeholder="Search for a song to add…"
             class="pl-10 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
             aria-label="Search for songs to add"
+            @keydown.enter="searchNow"
           />
           <Transition
             enter-active-class="transition duration-200 ease-out"
@@ -249,7 +292,7 @@ useHead({ title: 'Add song' })
 
     <template v-else>
       <div
-        v-if="downloads.searchError"
+        v-if="downloads.searchError && !searchPending"
         class="mb-3 flex flex-wrap items-center justify-center gap-2 text-sm text-rose-200/90"
       >
         <span>{{ downloads.searchError }}</span>
@@ -258,9 +301,26 @@ useHead({ title: 'Add song' })
         </Button>
       </div>
 
+      <!-- debounce pause: waiting for the user to stop typing -->
+      <div
+        v-else-if="searchPending"
+        class="flex animate-fade-in flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-10"
+      >
+        <!-- same pulse-spinner + equalizer animation as the searching state -->
+        <div class="relative flex h-14 w-14 items-center justify-center">
+          <span class="absolute inset-0 animate-breathe rounded-full bg-lavender-400/15" />
+          <span
+            class="absolute inset-1 animate-spin-slow rounded-full border border-lavender-400/25"
+            style="border-top-color: transparent; border-right-color: transparent"
+          />
+          <Equalizer active class="h-5" />
+        </div>
+        <p class="text-sm text-cream-dim">Search starts when you stop typing…</p>
+      </div>
+
       <!-- searching animation -->
       <div
-        v-if="downloads.searching && downloads.results.length === 0"
+        v-else-if="downloads.searching && downloads.results.length === 0"
         class="flex animate-fade-in flex-col items-center gap-3 rounded-pillow-lg border border-dashed border-white/6 bg-white/2 py-10"
       >
         <div class="relative flex h-14 w-14 items-center justify-center">
@@ -307,6 +367,7 @@ useHead({ title: 'Add song' })
       <p v-else-if="!downloads.searching" class="py-6 text-center text-sm text-cream-dim">
         No new songs found for “{{ searchInput }}”.
       </p>
+
     </template>
   </div>
 </template>
